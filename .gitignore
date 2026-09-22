@@ -2,6 +2,13 @@
 *.bak*
 node_modules/
 dist/
+build/
+release/
+vite.config.js
+vite.config.d.ts
+.env*
+!.env.example
+*.zip
 playwright-report/
 test-results/
 *.tsbuildinfo

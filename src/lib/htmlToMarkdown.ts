@@ -14,6 +14,119 @@ const turndownService = new TurndownService({
 
 turndownService.use(gfm);
 
+const FLOWUS_BLOCKS_MIME = 'text/next-space-blocks';
+const FLOWUS_CALLOUT_BLOCK_TYPE = 13;
+
+interface FlowUsRootBlock {
+    type: number;
+    title: string;
+}
+
+function parseFlowUsRootBlocks(rawData: string): FlowUsRootBlock[] {
+    if (!rawData) return [];
+    try {
+        const payload = JSON.parse(rawData) as {
+            blocks?: Array<{
+                id?: string;
+                subTree?: Record<string, { type?: number; title?: string }>;
+            }>;
+        };
+        return (payload.blocks || []).flatMap((root) => {
+            if (!root.id || !root.subTree?.[root.id]) return [];
+            const block = root.subTree[root.id];
+            return [{ type: Number(block.type), title: String(block.title || '') }];
+        });
+    } catch {
+        return [];
+    }
+}
+
+function wrapElementAsBlockquote(element: Element, document: Document) {
+    if (
+        element.tagName.toLowerCase() === 'blockquote'
+        || element.closest('blockquote')
+        || element.querySelector('blockquote')
+    ) return;
+    const blockquote = document.createElement('blockquote');
+    element.replaceWith(blockquote);
+    blockquote.appendChild(element);
+}
+
+function collapseNestedBlockquotes(body: HTMLElement) {
+    Array.from(body.querySelectorAll('blockquote blockquote')).forEach((nestedQuote) => {
+        nestedQuote.replaceWith(...Array.from(nestedQuote.childNodes));
+    });
+}
+
+function serializeFlowUsHtml(body: HTMLElement): string {
+    collapseNestedBlockquotes(body);
+    return body.innerHTML;
+}
+
+function findFlowUsBlockContainer(body: HTMLElement, blockCount: number): HTMLElement | null {
+    let container: HTMLElement = body;
+    while (container.children.length === 1) {
+        const onlyChild = container.children[0];
+        if (!(onlyChild instanceof HTMLElement) || onlyChild.children.length < blockCount) break;
+        container = onlyChild;
+    }
+    return container.children.length === blockCount ? container : null;
+}
+
+function normalizeBlockText(value: string): string {
+    return value.replace(/\s+/g, ' ').trim();
+}
+
+function restoreFlowUsCallouts(html: string, flowUsBlocksData: string): string {
+    const rootBlocks = parseFlowUsRootBlocks(flowUsBlocksData);
+    if (!rootBlocks.some(block => block.type === FLOWUS_CALLOUT_BLOCK_TYPE)) return html;
+
+    const parser = new DOMParser();
+    const document = parser.parseFromString(html, 'text/html');
+    const body = document.body;
+
+    if (rootBlocks.length === 1 && rootBlocks[0].type === FLOWUS_CALLOUT_BLOCK_TYPE) {
+        if (body.children.length === 1 && body.children[0].tagName.toLowerCase() === 'blockquote') {
+            return serializeFlowUsHtml(body);
+        }
+        const blockquote = document.createElement('blockquote');
+        while (body.firstChild) blockquote.appendChild(body.firstChild);
+        body.appendChild(blockquote);
+        return serializeFlowUsHtml(body);
+    }
+
+    const container = findFlowUsBlockContainer(body, rootBlocks.length);
+    if (container) {
+        const elements = Array.from(container.children);
+        rootBlocks.forEach((block, index) => {
+            if (block.type === FLOWUS_CALLOUT_BLOCK_TYPE && elements[index]) {
+                wrapElementAsBlockquote(elements[index], document);
+            }
+        });
+        return serializeFlowUsHtml(body);
+    }
+
+    for (const block of rootBlocks) {
+        if (block.type !== FLOWUS_CALLOUT_BLOCK_TYPE) continue;
+        const expectedText = normalizeBlockText(block.title);
+        if (!expectedText) continue;
+        const candidates = Array.from(body.querySelectorAll('p, div, section, aside'))
+            .filter(element => normalizeBlockText(element.textContent || '') === expectedText)
+            .sort((left, right) => left.children.length - right.children.length);
+        if (candidates[0]) wrapElementAsBlockquote(candidates[0], document);
+    }
+
+    return serializeFlowUsHtml(body);
+}
+
+function collapseDuplicateFlowUsQuoteMarkers(markdown: string, flowUsBlocksData: string): string {
+    const hasFlowUsCallout = parseFlowUsRootBlocks(flowUsBlocksData)
+        .some(block => block.type === FLOWUS_CALLOUT_BLOCK_TYPE);
+    if (!hasFlowUsCallout) return markdown;
+
+    return markdown.replace(/^(?:[ \t]*>\s*){2,}/gm, '> ');
+}
+
 // Rule to optimize images
 turndownService.addRule('image', {
     filter: 'img',
@@ -98,6 +211,12 @@ function fileToDataUrl(file: File): Promise<string> {
     });
 }
 
+export function htmlToMarkdown(html: string, flowUsBlocksData = ''): string {
+    const semanticHtml = restoreFlowUsCallouts(html, flowUsBlocksData);
+    const markdown = turndownService.turndown(semanticHtml).replace(/\n{3,}/g, '\n\n');
+    return collapseDuplicateFlowUsQuoteMarkers(markdown, flowUsBlocksData);
+}
+
 export function insertAtSelection(
     textarea: HTMLTextAreaElement,
     insertedText: string,
@@ -125,6 +244,7 @@ export function handleSmartPaste(
 
     const htmlData = clipboardData.getData('text/html');
     const textData = clipboardData.getData('text/plain');
+    const flowUsBlocksData = clipboardData.getData(FLOWUS_BLOCKS_MIME);
     const imageFiles = getClipboardImageFiles(clipboardData);
 
     if (imageFiles.length > 0) {
@@ -174,8 +294,7 @@ export function handleSmartPaste(
 
         e.preventDefault();
         try {
-            let markdown = turndownService.turndown(htmlData);
-            markdown = markdown.replace(/\n{3,}/g, '\n\n');
+            const markdown = htmlToMarkdown(htmlData, flowUsBlocksData);
 
             const textarea = e.currentTarget;
             insertAtSelection(textarea, markdown, setMarkdownInput);

@@ -1,11 +1,19 @@
 {
   "name": "raphael-publish",
   "private": true,
-  "version": "1.0.0",
+  "version": "1.2.0",
   "type": "module",
+  "main": "electron/main.mjs",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
+    "desktop": "electron .",
+    "desktop:dev": "concurrently -k \"vite --host 127.0.0.1\" \"wait-on http://127.0.0.1:5173 && cross-env VITE_DEV_SERVER_URL=http://127.0.0.1:5173 electron .\"",
+    "desktop:pack": "pnpm build && pnpm icon:build && electron-builder --win --x64 --dir",
+    "icon:build": "node scripts/build-icon.mjs",
+    "test:desktop-backend": "node electron/smoke-test.mjs",
+    "test:desktop-ui": "node scripts/test-desktop-ui.mjs",
+    "test:wechat-publisher": "node scripts/test-wechat-publisher.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
@@ -35,16 +43,39 @@
     "@types/react-dom": "^18.3.1",
     "@vitejs/plugin-react": "^4.3.3",
     "autoprefixer": "^10.4.20",
+    "concurrently": "^10.0.5",
+    "cross-env": "^10.1.0",
+    "electron": "^44.3.0",
+    "electron-builder": "^26.15.3",
     "eslint": "^9.13.0",
     "eslint-plugin-react-hooks": "^5.0.0",
     "eslint-plugin-react-refresh": "^0.4.14",
     "globals": "^15.11.0",
     "jsdom": "^28.1.0",
+    "png-to-ico": "^3.0.2",
     "postcss": "^8.4.47",
     "tailwindcss": "^3.4.14",
     "typescript": "~5.6.2",
     "typescript-eslint": "^8.11.0",
     "vite": "^5.4.10",
-    "vitest": "^4.0.18"
+    "vitest": "^4.0.18",
+    "wait-on": "^9.1.0"
+  },
+  "build": {
+    "appId": "com.raphael.publish.desktop",
+    "productName": "Raphael Publish",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "electron/**/*",
+      "package.json",
+      "LICENSE"
+    ],
+    "asar": true,
+    "win": {
+      "icon": "build/icon.ico"
+    }
   }
 }

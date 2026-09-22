@@ -12,7 +12,13 @@ export function cleanInternalAttributes(html: string): string {
     return stripIndexMarkers(html);
 }
 
-// Helper to convert images to Base64
+export interface WeChatCompatibilityOptions {
+    imageMode?: 'base64' | 'preserve';
+    profile?: 'copy' | 'publish';
+}
+
+// Helper used only by the legacy clipboard fallback. Direct draft publishing keeps
+// local image URLs intact so the Electron main process can upload them to WeChat.
 async function getBase64Image(imgUrl: string): Promise<string> {
     try {
         if (imgUrl.startsWith('data:')) return imgUrl;
@@ -32,12 +38,96 @@ async function getBase64Image(imgUrl: string): Promise<string> {
     }
 }
 
-export async function makeWeChatCompatible(html: string, themeId: string): Promise<string> {
+const WECHAT_TEXT_ALIGNMENTS = new Set(['left', 'center', 'right', 'justify']);
+const FORBIDDEN_STYLE_PATTERNS = [
+    /position\s*:\s*(?:fixed|sticky)\s*;?/gi,
+    /float\s*:\s*[^;]+;?/gi,
+    /clear\s*:\s*[^;]+;?/gi,
+    /z-index\s*:\s*[^;]+;?/gi,
+    /filter\s*:\s*[^;]+;?/gi,
+    /columns?(?:-[a-z-]+)?\s*:\s*[^;]+;?/gi,
+    /@font-face[^;]*;?/gi,
+];
+
+function sanitizeInlineStyle(style: string): string {
+    let sanitized = normalizeTextAlignment(style);
+    FORBIDDEN_STYLE_PATTERNS.forEach(pattern => {
+        sanitized = sanitized.replace(pattern, '');
+    });
+    return sanitized
+        .replace(/(?:^|;)\s*margin-(?:top|right|bottom|left)\s*:\s*-(?:[3-9]\d|\d{3,})px\s*;?/gi, ';')
+        .replace(/;{2,}/g, ';')
+        .trim();
+}
+
+function replaceElementTag(doc: Document, element: Element, tagName: string): Element {
+    const replacement = doc.createElement(tagName);
+    Array.from(element.attributes).forEach(attribute => replacement.setAttribute(attribute.name, attribute.value));
+    while (element.firstChild) replacement.appendChild(element.firstChild);
+    element.parentNode?.replaceChild(replacement, element);
+    return replacement;
+}
+
+function convertListsToSections(doc: Document, root: Element): void {
+    const lists = Array.from(root.querySelectorAll('ul, ol')).reverse();
+    lists.forEach(list => {
+        const ordered = list.tagName === 'OL';
+        const wrapper = doc.createElement('section');
+        const listStyle = sanitizeInlineStyle(list.getAttribute('style') || '');
+        wrapper.setAttribute('style', `${listStyle}${listStyle && !listStyle.endsWith(';') ? ';' : ''} margin: 12px 0;`);
+
+        Array.from(list.children).forEach((child, index) => {
+            if (child.tagName !== 'LI') return;
+            const item = doc.createElement('section');
+            item.setAttribute('style', 'display: flex; align-items: flex-start; margin: 6px 0; text-align: left;');
+
+            const marker = doc.createElement('span');
+            marker.textContent = ordered ? `${index + 1}.` : '•';
+            marker.setAttribute('style', 'flex: 0 0 auto; min-width: 1.5em; text-align: left;');
+
+            const content = doc.createElement('section');
+            content.setAttribute('style', 'flex: 1 1 auto; min-width: 0; text-align: left;');
+            while (child.firstChild) content.appendChild(child.firstChild);
+
+            item.append(marker, content);
+            wrapper.appendChild(item);
+        });
+        list.parentNode?.replaceChild(wrapper, list);
+    });
+}
+
+function normalizeTextAlignment(style: string, addDefault = false): string {
+    let found = false;
+    const normalized = style.replace(/text-align\s*:\s*([^;!]+)\s*(!important)?\s*;?/gi, (_match, rawValue, important) => {
+        found = true;
+        const value = String(rawValue).trim().toLowerCase();
+        const mapped = value === 'start' || value === '-webkit-left'
+            ? 'left'
+            : value === 'end' || value === '-webkit-right'
+                ? 'right'
+                : value === '-webkit-center'
+                    ? 'center'
+                    : value === 'justify-all'
+                        ? 'justify'
+                        : WECHAT_TEXT_ALIGNMENTS.has(value) ? value : 'left';
+        return `text-align: ${mapped}${important ? ' !important' : ''};`;
+    });
+
+    if (!found && addDefault) return `${normalized}${normalized.trimEnd().endsWith(';') ? '' : ';'} text-align: left;`;
+    return normalized;
+}
+
+export async function makeWeChatCompatible(
+    html: string,
+    themeId: string,
+    options: WeChatCompatibilityOptions = {},
+): Promise<string> {
     const parser = new DOMParser();
     const doc = parser.parseFromString(html, 'text/html');
 
     const theme = THEMES.find(t => t.id === themeId) || THEMES[0];
     const containerStyle = theme.styles.container || '';
+    const profile = options.profile || 'copy';
 
     // 0. Remove internal editor attributes (for click-to-locate feature)
     // These are only used in the editor and should not appear in the final HTML
@@ -56,7 +146,7 @@ export async function makeWeChatCompatible(html: string, themeId: string): Promi
 
     // Create new wrap section
     const section = doc.createElement('section');
-    section.setAttribute('style', containerStyle);
+    section.setAttribute('style', normalizeTextAlignment(containerStyle, true));
 
     rootNodes.forEach(node => {
         // If the original html came from applyTheme it already has a root div
@@ -108,27 +198,14 @@ export async function makeWeChatCompatible(html: string, themeId: string): Promi
         }
     });
 
-    // 3. List Item Flattening
-    // WeChat notoriously misrenders heavily nested <li> formatting, flattening the inner structure helps
-    const listItems = section.querySelectorAll('li');
-    listItems.forEach(li => {
-        const hasBlockChildren = Array.from(li.children).some(child =>
-            ['P', 'DIV', 'UL', 'OL', 'BLOCKQUOTE'].includes(child.tagName)
-        );
-        if (hasBlockChildren) {
-            // We only want to clean inner tags if it's overly complex, 
-            // but flattening everything might kill <strong> or <em>.
-            // Let's just strip 'p' inside 'li' by replacing <p> with <span>
-            const ps = li.querySelectorAll('p');
-            ps.forEach(p => {
-                const span = doc.createElement('span');
-                span.innerHTML = p.innerHTML;
-                const pStyle = p.getAttribute('style');
-                if (pStyle) span.setAttribute('style', pStyle);
-                p.parentNode?.replaceChild(span, p);
-            });
-        }
-    });
+    // Direct API publishing uses a deliberately conservative structure. Manual
+    // clipboard copying keeps native lists because it preserves the original
+    // theme and editor behavior more faithfully.
+    if (profile === 'publish') {
+        convertListsToSections(doc, section);
+    } else {
+        section.querySelectorAll('li > p').forEach(paragraph => replaceElementTag(doc, paragraph, 'span'));
+    }
 
     // 4. Force Inheritance
     // WeChat's editor aggressively overrides inherited fonts on <p>, <li>, etc.
@@ -145,6 +222,7 @@ export async function makeWeChatCompatible(html: string, themeId: string): Promi
         if (node.tagName === 'SPAN' && node.closest('pre, code')) return;
 
         let currentStyle = node.getAttribute('style') || '';
+        if (currentStyle && !currentStyle.trimEnd().endsWith(';')) currentStyle += ';';
 
         if (fontMatch && !currentStyle.includes('font-family:')) {
             currentStyle += ` font-family: ${fontMatch[1]};`;
@@ -161,6 +239,13 @@ export async function makeWeChatCompatible(html: string, themeId: string): Promi
         }
 
         node.setAttribute('style', currentStyle.trim());
+    });
+
+    // WeChat's structure checker rejects logical/browser-specific alignment values such as
+    // `start` and `-webkit-center`. Give every text block an explicit physical alignment.
+    const alignedBlocks = section.querySelectorAll('p, li, h1, h2, h3, h4, h5, h6, blockquote, td, th, section');
+    alignedBlocks.forEach(node => {
+        node.setAttribute('style', normalizeTextAlignment(node.getAttribute('style') || '', true).trim());
     });
 
     // Keep CJK punctuation attached to preceding inline emphasis in WeChat.
@@ -183,15 +268,41 @@ export async function makeWeChatCompatible(html: string, themeId: string): Promi
         }
     });
 
-    // 5. Convert all images to Base64 for safe WeChat pasting
+    // Direct API publishing gets the stricter sanitizer. Clipboard copying keeps
+    // the theme's richer inline structure for the best visual fidelity.
+    if (profile === 'publish') {
+        section.querySelectorAll('script, style, link, form, input, button, select, textarea, iframe, audio, video, object, embed, svg, foreignObject').forEach(node => node.remove());
+        Array.from(section.querySelectorAll('*')).forEach(node => {
+            Array.from(node.attributes).forEach(attribute => {
+                const name = attribute.name.toLowerCase();
+                if (name === 'class' || name === 'id' || name.startsWith('data-md-') || name.startsWith('on')) {
+                    node.removeAttribute(attribute.name);
+                }
+            });
+            const style = node.getAttribute('style');
+            if (style !== null) {
+                const sanitized = sanitizeInlineStyle(style);
+                if (sanitized) node.setAttribute('style', sanitized);
+                else node.removeAttribute('style');
+            }
+            if (node.tagName === 'A' && /^javascript:/i.test(node.getAttribute('href') || '')) node.removeAttribute('href');
+        });
+
+        Array.from(section.querySelectorAll('div')).forEach(node => replaceElementTag(doc, node, 'section'));
+    }
+
+    // 6. Base64 is retained only for the manual-copy fallback. Direct publishing
+    // uploads images first and substitutes WeChat-hosted URLs in the main process.
     const imgs = Array.from(section.querySelectorAll('img'));
-    await Promise.all(imgs.map(async img => {
-        const src = img.getAttribute('src');
-        if (src && !src.startsWith('data:')) {
-            const base64 = await getBase64Image(src);
-            img.setAttribute('src', base64);
-        }
-    }));
+    if ((options.imageMode || 'base64') === 'base64') {
+        await Promise.all(imgs.map(async img => {
+            const src = img.getAttribute('src');
+            if (src && !src.startsWith('data:')) {
+                const base64 = await getBase64Image(src);
+                img.setAttribute('src', base64);
+            }
+        }));
+    }
 
     doc.body.innerHTML = '';
     doc.body.appendChild(section);

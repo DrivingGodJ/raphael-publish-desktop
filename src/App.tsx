@@ -8,22 +8,35 @@ import { THEMES } from './lib/themes';
 import { defaultContent } from './defaultContent';
 import { findImagePosition, selectTextAreaRange } from './lib/imageSelector';
 import { findElementPosition, type ElementLocation } from './lib/markdownLocator';
+import { resolveProjectAssets, restoreProjectAssetPath } from './lib/projectAssets';
+import { copyPlainTextWithNativeSelection, copyRichHtmlWithNativeSelection } from './lib/nativeCopy';
+import type { RaphaelProject } from './types/desktop';
 import Header from './components/Header';
+import ProjectManager from './components/ProjectManager';
 import ThemeSelector from './components/ThemeSelector';
 import Toolbar from './components/Toolbar';
 import EditorPanel from './components/EditorPanel';
 import PreviewPanel from './components/PreviewPanel';
+import WechatPublishDialog, { type WechatPublishFormValue } from './components/WechatPublishDialog';
 
 export default function App() {
-    const [themeMode, setThemeMode] = useState<'light' | 'dark'>('light');
     const [markdownInput, setMarkdownInput] = useState<string>(defaultContent);
     const [renderedHtml, setRenderedHtml] = useState<string>('');
     const [activeTheme, setActiveTheme] = useState(THEMES[0].id);
     const [copied, setCopied] = useState(false);
+    const [plainCopied, setPlainCopied] = useState(false);
     const [isCopying, setIsCopying] = useState(false);
     const [previewDevice, setPreviewDevice] = useState<'mobile' | 'tablet' | 'pc'>('pc');
     const [activePanel, setActivePanel] = useState<'editor' | 'preview'>('editor');
     const [scrollSyncEnabled, setScrollSyncEnabled] = useState(true);
+    const [currentProject, setCurrentProject] = useState<RaphaelProject | null>(null);
+    const [isProjectManagerOpen, setIsProjectManagerOpen] = useState(false);
+    const [isUpdatingImages, setIsUpdatingImages] = useState(false);
+    const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+    const [notice, setNotice] = useState('');
+    const [isPublishOpen, setIsPublishOpen] = useState(false);
+    const isLoadingProjectRef = useRef(false);
+    const saveTimerRef = useRef<number | null>(null);
     const previewRef = useRef<HTMLDivElement>(null);
     const editorScrollRef = useRef<HTMLTextAreaElement>(null);
     const previewOuterScrollRef = useRef<HTMLDivElement>(null);
@@ -32,21 +45,74 @@ export default function App() {
     const scrollLockReleaseTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     useEffect(() => {
-        // Enforce light mode as default, do not follow system preferences
+        const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+        const applySystemTheme = (isDark: boolean) => {
+            document.documentElement.classList.toggle('dark', isDark);
+        };
+
+        applySystemTheme(mediaQuery.matches);
+        const handleChange = (event: MediaQueryListEvent) => applySystemTheme(event.matches);
+        mediaQuery.addEventListener('change', handleChange);
+        return () => mediaQuery.removeEventListener('change', handleChange);
     }, []);
 
-    const toggleTheme = () => {
-        setThemeMode((prev) => {
-            const next = prev === 'light' ? 'dark' : 'light';
-            if (next === 'dark') document.documentElement.classList.add('dark');
-            else document.documentElement.classList.remove('dark');
-            return next;
-        });
-    };
+    const openProjectInEditor = useCallback((project: RaphaelProject) => {
+        isLoadingProjectRef.current = true;
+        setCurrentProject(project);
+        setMarkdownInput(project.markdown);
+        if (project.themeId && THEMES.some(theme => theme.id === project.themeId)) {
+            setActiveTheme(project.themeId);
+        }
+        setSaveState('saved');
+        window.setTimeout(() => {
+            isLoadingProjectRef.current = false;
+        }, 0);
+    }, []);
+
+    useEffect(() => {
+        const desktop = window.raphaelDesktop;
+        if (!desktop) return;
+        desktop.listProjects()
+            .then(async projects => {
+                if (projects.length > 0) openProjectInEditor(await desktop.readProject(projects[0].id));
+            })
+            .catch(error => {
+                console.error('Failed to load projects', error);
+                setNotice('读取本地项目失败，请通过项目管理重试。');
+            });
+    }, [openProjectInEditor]);
+
+    useEffect(() => {
+        const desktop = window.raphaelDesktop;
+        if (!desktop || !currentProject || isLoadingProjectRef.current) return;
+        setSaveState('saving');
+        saveTimerRef.current = window.setTimeout(() => {
+            saveTimerRef.current = null;
+            desktop.saveProject({ id: currentProject.id, markdown: markdownInput, themeId: activeTheme })
+                .then(() => setSaveState('saved'))
+                .catch(error => {
+                    console.error('Failed to save project', error);
+                    setSaveState('error');
+                });
+        }, 650);
+        return () => {
+            if (saveTimerRef.current !== null) {
+                window.clearTimeout(saveTimerRef.current);
+                saveTimerRef.current = null;
+            }
+        };
+    }, [markdownInput, activeTheme, currentProject?.id]);
+
+    useEffect(() => {
+        if (!notice) return;
+        const timer = window.setTimeout(() => setNotice(''), 5000);
+        return () => window.clearTimeout(timer);
+    }, [notice]);
 
     useEffect(() => {
         // Core rendering: markdown → HTML → styled HTML
-        const rawHtml = md.render(preprocessMarkdown(markdownInput));
+        const previewMarkdown = resolveProjectAssets(markdownInput, currentProject?.id);
+        const rawHtml = md.render(preprocessMarkdown(previewMarkdown));
         const styledHtml = applyTheme(rawHtml, activeTheme);
 
         // Enhancement layer: add index markers for click-to-locate
@@ -54,7 +120,7 @@ export default function App() {
         const indexedHtml = markElementIndexes(styledHtml);
 
         setRenderedHtml(indexedHtml);
-    }, [markdownInput, activeTheme]);
+    }, [markdownInput, activeTheme, currentProject?.id]);
 
     useEffect(() => {
         if (!scrollSyncEnabled) {
@@ -147,15 +213,11 @@ export default function App() {
         try {
             const finalHtmlForCopy = await makeWeChatCompatible(renderedHtml, activeTheme);
 
-            const blob = new Blob([finalHtmlForCopy], { type: 'text/html' });
-            const textBlob = new Blob([previewRef.current.innerText], { type: 'text/plain' });
+            if (!copyRichHtmlWithNativeSelection(finalHtmlForCopy, previewRef.current.innerText)) {
+                throw new Error('浏览器未能完成原生富文本复制。');
+            }
 
-            const clipboardItem = new ClipboardItem({
-                'text/html': blob,
-                'text/plain': textBlob
-            });
-            await navigator.clipboard.write([clipboardItem]);
-
+            setPlainCopied(false);
             setCopied(true);
             setTimeout(() => setCopied(false), 2000);
         } catch (err) {
@@ -166,9 +228,9 @@ export default function App() {
         }
     };
 
-    const handleExportHtml = () => {
-        // Clean internal attributes before exporting
-        const cleanHtml = cleanInternalAttributes(renderedHtml);
+    const handleExportHtml = async () => {
+        // Export a self-contained article so local project images stay available.
+        const cleanHtml = cleanInternalAttributes(await makeWeChatCompatible(renderedHtml, activeTheme));
         const blob = new Blob([cleanHtml], { type: 'text/html;charset=utf-8' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
@@ -214,7 +276,8 @@ export default function App() {
 
         // Images use specialized positioning
         if (info.type === 'image' && info.src) {
-            const match = findImagePosition(markdownInput, info.src, info.alt || '');
+            const markdownSource = restoreProjectAssetPath(info.src, currentProject?.id);
+            const match = findImagePosition(markdownInput, markdownSource, info.alt || '');
             if (match) {
                 // Add type field to match ElementLocation interface
                 location = {
@@ -237,7 +300,7 @@ export default function App() {
                 setActivePanel('editor');
             }
         }
-    }, [markdownInput, activePanel]);
+    }, [markdownInput, activePanel, currentProject?.id]);
 
     const deviceWidthClass = () => {
         if (previewDevice === 'mobile') return 'w-[520px] max-w-full';
@@ -251,10 +314,102 @@ export default function App() {
         return 'md:grid-cols-[38.2fr_61.8fr]';
     };
 
+    const handleCopyPlainText = () => {
+        if (!previewRef.current) return;
+        try {
+            if (!copyPlainTextWithNativeSelection(previewRef.current.innerText)) {
+                throw new Error('浏览器未能完成纯文本复制。');
+            }
+            setCopied(false);
+            setPlainCopied(true);
+            setTimeout(() => setPlainCopied(false), 2000);
+        } catch (err) {
+            console.error('Plain text copy failed', err);
+            alert('复制纯文本失败，请重试');
+        }
+    };
+
+    const handleUpdateImages = async () => {
+        const desktop = window.raphaelDesktop;
+        if (!desktop || !currentProject || isUpdatingImages) return;
+        if (saveTimerRef.current !== null) {
+            window.clearTimeout(saveTimerRef.current);
+            saveTimerRef.current = null;
+        }
+
+        setIsUpdatingImages(true);
+        setSaveState('saving');
+        try {
+            const result = await desktop.updateProjectImages({
+                id: currentProject.id,
+                markdown: markdownInput,
+                themeId: activeTheme,
+            });
+            openProjectInEditor(result.project);
+            const removedNote = result.removedImageCount ? `，清理 ${result.removedImageCount} 张未使用图片` : '';
+            if (result.scannedImageCount === 0 && result.removedImageCount === 0) {
+                setNotice('没有发现需要更新的网络图片链接，图片文件夹已经整理完成。');
+            } else if (result.scannedImageCount === 0) {
+                setNotice(`图片已整理：清理 ${result.removedImageCount} 张未使用图片。`);
+            } else {
+                const reusedNote = result.reusedImageCount ? `，复用 ${result.reusedImageCount} 张已有图片` : '';
+                const failureNote = result.failedImageCount ? `，${result.failedImageCount} 张下载失败并保留原链接` : '';
+                setNotice(`图片更新完成：新下载 ${result.downloadedImageCount} 张${reusedNote}${failureNote}${removedNote}。`);
+            }
+        } catch (error) {
+            console.error('Failed to update project images', error);
+            setSaveState('error');
+            setNotice(error instanceof Error ? `图片更新失败：${error.message}` : '图片更新失败，请稍后重试。');
+        } finally {
+            setIsUpdatingImages(false);
+        }
+    };
+
+    const buildPublishHtml = async () => {
+        return cleanInternalAttributes(await makeWeChatCompatible(renderedHtml, activeTheme, { imageMode: 'preserve', profile: 'publish' }));
+    };
+
+    const handlePublishDraft = async (value: WechatPublishFormValue) => {
+        const desktop = window.raphaelDesktop;
+        if (!desktop || !currentProject) throw new Error('请先打开一个本地项目。');
+        const html = await buildPublishHtml();
+        return desktop.publishWechatDraft({
+            projectId: currentProject.id,
+            content: html,
+            ...value,
+        });
+    };
+
+    const handleProjectDeleted = (projectId: string) => {
+        if (currentProject?.id !== projectId) return;
+        setCurrentProject(null);
+        setMarkdownInput(defaultContent);
+        setSaveState('idle');
+        setNotice('当前项目已移入回收站。');
+    };
+
+    const handleProjectRenamed = (project: { id: string; title: string }) => {
+        setCurrentProject(current => current?.id === project.id ? { ...current, title: project.title } : current);
+    };
+
+    const saveStateLabel = currentProject
+        ? saveState === 'saving' ? '正在保存…' : saveState === 'error' ? '保存失败' : '已保存到本地'
+        : '当前内容尚未建立项目';
+
     return (
         <div className="flex flex-col h-screen overflow-hidden antialiased bg-[#fbfbfd] dark:bg-black transition-colors duration-300">
 
-            <Header themeMode={themeMode} onToggleTheme={toggleTheme} />
+            <Header
+                onOpenProjects={() => setIsProjectManagerOpen(true)}
+                onUpdateImages={handleUpdateImages}
+                onPublishDraft={() => setIsPublishOpen(true)}
+                desktopAvailable={Boolean(window.raphaelDesktop)}
+                canUpdateImages={Boolean(currentProject)}
+                isUpdatingImages={isUpdatingImages}
+                projectTitle={currentProject?.title}
+                saveStateLabel={saveStateLabel}
+                saveState={saveState}
+            />
 
             {/* 移动端 Tab 切换 */}
             <div className="md:hidden glass-toolbar flex items-center z-[90]">
@@ -285,7 +440,9 @@ export default function App() {
                     onExportPdf={handleExportPdf}
                     onExportHtml={handleExportHtml}
                     onCopy={handleCopy}
+                    onCopyPlain={handleCopyPlainText}
                     copied={copied}
+                    plainCopied={plainCopied}
                     isCopying={isCopying}
                     scrollSyncEnabled={scrollSyncEnabled}
                     onToggleScrollSync={() => setScrollSyncEnabled((prev) => !prev)}
@@ -303,7 +460,9 @@ export default function App() {
                     onExportPdf={handleExportPdf}
                     onExportHtml={handleExportHtml}
                     onCopy={handleCopy}
+                    onCopyPlain={handleCopyPlainText}
                     copied={copied}
+                    plainCopied={plainCopied}
                     isCopying={isCopying}
                     scrollSyncEnabled={scrollSyncEnabled}
                     onToggleScrollSync={() => setScrollSyncEnabled((prev) => !prev)}
@@ -336,6 +495,26 @@ export default function App() {
                     />
                 </div>
             </main>
+
+            <ProjectManager
+                open={isProjectManagerOpen}
+                currentProjectId={currentProject?.id}
+                onClose={() => setIsProjectManagerOpen(false)}
+                onOpenProject={openProjectInEditor}
+                onProjectDeleted={handleProjectDeleted}
+                onProjectRenamed={handleProjectRenamed}
+            />
+            <WechatPublishDialog
+                open={isPublishOpen}
+                defaultTitle={currentProject?.title || ''}
+                onClose={() => setIsPublishOpen(false)}
+                onSubmit={handlePublishDraft}
+            />
+            {notice && (
+                <div className="fixed bottom-6 left-1/2 z-[400] max-w-[90vw] -translate-x-1/2 rounded-full bg-black px-5 py-3 text-sm text-white shadow-2xl dark:bg-white dark:text-black">
+                    {notice}
+                </div>
+            )}
 
         </div>
     );
