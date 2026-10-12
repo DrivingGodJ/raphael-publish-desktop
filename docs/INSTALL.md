@@ -40,4 +40,4 @@ Web UI 设置保存在系统 Application Data 下的 `raphael-publish`；WinUI �
 
 Windows 核对示例：`Get-FileHash -Algorithm SHA256 '<安装包路径>'`。Mac：`shasum -a 256 '<dmg路径>'`。将结果与 Release 的 `SHA256SUMS.txt` 比较；哈希只证明文件与发行产物一致，不证明没有缺陷。
 
-文章始终留在本地。仅在点击更新图片时请求图片来源，在点击创建草稿时请求微信官方 API。应用不会自动发表公众号文章。
+文章项目保存在本地。预览与更新图片会请求正文引用的图片来源；点击创建草稿时，正文和图片通过微信官方 API 上传。应用不会自动发表公众号文章。

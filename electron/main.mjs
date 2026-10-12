@@ -185,7 +185,17 @@ else {
   })
 
   app.whenReady().then(async () => {
-    Menu.setApplicationMenu(null)
+    // macOS text editing shortcuts are provided by native menu roles.
+    // Removing the whole menu also removes Command+C/V in many controls.
+    Menu.setApplicationMenu(process.platform === 'darwin' ? Menu.buildFromTemplate([
+      { role: 'appMenu' },
+      { label: '编辑', submenu: [
+        { role: 'undo' }, { role: 'redo' }, { type: 'separator' },
+        { role: 'cut' }, { role: 'copy' }, { role: 'paste' }, { role: 'pasteAndMatchStyle' },
+        { role: 'delete' }, { type: 'separator' }, { role: 'selectAll' },
+      ] },
+      { role: 'windowMenu' },
+    ]) : null)
     await mkdir(getProjectsRoot(), { recursive: true })
     registerIpcHandlers()
     await registerProjectProtocol()

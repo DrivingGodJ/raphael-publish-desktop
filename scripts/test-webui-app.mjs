@@ -32,6 +32,17 @@ try {
   await page.getByTestId('editor-input').waitFor()
   await page.waitForFunction(() => document.body.innerText.includes('已保存'))
   assert.match(await readFile(join(root, 'projects', result.folderName, '正文.md'), 'utf8'), /已保存/)
+  if (process.platform === 'darwin') {
+    await app.evaluate(({ clipboard }) => clipboard.write({ text: 'Mac 粘贴验证\n强调段落', html: '<h2>Mac 粘贴验证</h2><blockquote><p>强调段落</p></blockquote>' }))
+    const editor = page.getByTestId('editor-input')
+    await editor.fill('')
+    await editor.press('Meta+V')
+    await page.waitForFunction(() => document.querySelector('[data-testid="editor-input"]').value.includes('Mac 粘贴验证'))
+    const pasted = await editor.inputValue()
+    assert.match(pasted, /## Mac 粘贴验证/)
+    assert.match(pasted, /> 强调段落/)
+    assert.doesNotMatch(pasted, />>|> >/)
+  }
   await app.close(); app = null
   process.stdout.write(JSON.stringify({ success: true, platform: process.platform, arch: process.arch, version: result.info.version, packagedWindow: true, nativeBridge: true, createRenameSave: true, previewRendered: true, closeExits: true }) + '\n')
 }
