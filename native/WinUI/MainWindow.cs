@@ -192,7 +192,7 @@ public sealed class MainWindow : Window
     Border Pane(string title, FrameworkElement body, FrameworkElement? action = null)
     {
         var grid = new Grid(); grid.RowDefinitions.Add(new() { Height = GridLength.Auto }); grid.RowDefinitions.Add(new() { Height = new GridLength(1, GridUnitType.Star) });
-        var heading = new Grid { Margin = new Thickness(18, 10, 12, 10) };
+        var heading = new Grid { MinHeight = 32, Margin = new Thickness(18, 10, 12, 10) };
         heading.ColumnDefinitions.Add(new() { Width = new GridLength(1, GridUnitType.Star) }); heading.ColumnDefinitions.Add(new() { Width = GridLength.Auto });
         heading.Children.Add(new TextBlock { Text = title, FontSize = 13, Opacity = .65, VerticalAlignment = VerticalAlignment.Center });
         if (action is not null) { Grid.SetColumn(action, 1); heading.Children.Add(action); }
