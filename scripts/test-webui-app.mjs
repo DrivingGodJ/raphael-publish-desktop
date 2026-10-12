@@ -33,7 +33,7 @@ try {
   await page.waitForFunction(() => document.body.innerText.includes('已保存'))
   assert.match(await readFile(join(root, 'projects', result.folderName, '正文.md'), 'utf8'), /已保存/)
   if (process.platform === 'darwin') {
-    await app.evaluate(({ clipboard }) => clipboard.write({ text: 'Mac 粘贴验证\n强调段落', html: '<h2>Mac 粘贴验证</h2><blockquote><p>强调段落</p></blockquote>' }))
+    await app.evaluate(({ clipboard, ClipboardItem }) => clipboard.write([new ClipboardItem({ 'text/plain': 'Mac 粘贴验证\n强调段落', 'text/html': '<h2>Mac 粘贴验证</h2><blockquote><p>强调段落</p></blockquote>' })]))
     const editor = page.getByTestId('editor-input')
     await editor.fill('')
     await editor.press('Meta+V')
