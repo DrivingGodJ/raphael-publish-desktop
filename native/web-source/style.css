@@ -1,0 +1,10 @@
+:root { color-scheme: light; font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif; background: #f6f6f6; }
+:root.dark { color-scheme: dark; background: #202020; }
+body { margin: 0; padding: 28px; }
+#article { box-sizing: border-box; max-width: 940px; margin: 0 auto; padding: 0; background: #fff; color: #202020; border-radius: 8px; overflow: hidden; box-shadow: 0 2px 12px #00000008; }
+body[data-device="mobile"] #article { max-width: 430px; }
+body[data-device="tablet"] #article { max-width: 768px; }
+img { max-width: 100%; }
+body.printing, :root:has(body.printing) { background: white; padding: 0; }
+body.printing #article { max-width: none; margin: 0; padding: 0; box-shadow: none; }
+@media print { :root, body { background: white; padding: 0; } #article { max-width: none; padding: 0; box-shadow: none; } img, blockquote, pre, tr { break-inside: avoid; } }

@@ -10,6 +10,7 @@
     "desktop": "electron .",
     "desktop:dev": "concurrently -k \"vite --host 127.0.0.1\" \"wait-on http://127.0.0.1:5173 && cross-env VITE_DEV_SERVER_URL=http://127.0.0.1:5173 electron .\"",
     "desktop:pack": "pnpm build && pnpm icon:build && electron-builder --win --x64 --dir",
+    "winui:pack": "pwsh -NoProfile -File scripts/build-winui.ps1",
     "icon:build": "node scripts/build-icon.mjs",
     "test:desktop-backend": "node electron/smoke-test.mjs",
     "test:desktop-ui": "node scripts/test-desktop-ui.mjs",

@@ -45,3 +45,27 @@ jobs:
 
       - name: Build
         run: pnpm build
+
+  winui-build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.19.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - run: pnpm install --frozen-lockfile
+      - name: Test native project and publisher logic
+        run: dotnet run --project native/Tests/Raphael.Core.Tests.csproj -c Release
+      - name: Build WinUI 3 app
+        run: pwsh -NoProfile -File scripts/build-winui.ps1
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Raphael-Publish-WinUI-windows-x64
+          path: release/winui-v2.0.0/

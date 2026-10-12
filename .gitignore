@@ -4,6 +4,10 @@ node_modules/
 dist/
 build/
 release/
+**/bin/
+**/obj/
+native/WinUI/Web/assets/
+native/WinUI/Web/index.html
 vite.config.js
 vite.config.d.ts
 .env*

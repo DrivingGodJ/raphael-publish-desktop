@@ -11,6 +11,8 @@
 
 ## Windows 本地开发
 
+WinUI 3 原生重构版位于 `native/`，使用同一套项目数据和排版引擎。原生窗口、菜单、项目弹窗、Markdown 编辑器及系统剪贴板已改用 WinUI/C#；文章预览通过 WebView2 展示。运行 `pnpm winui:pack` 构建，详细说明见 [native/README.md](native/README.md)。
+
 需要 Node.js 24、pnpm 11 和 Microsoft Edge。克隆仓库后运行：
 
 ```bash
