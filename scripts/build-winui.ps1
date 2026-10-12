@@ -5,12 +5,13 @@ Set-Location -LiteralPath $repo
 $dotnet = Get-Command dotnet -ErrorAction SilentlyContinue | Select-Object -First 1 -ExpandProperty Source
 if (-not $dotnet) { $dotnet = Join-Path $env:LOCALAPPDATA 'Programs\dotnet\dotnet.exe' }
 if (-not (Test-Path -LiteralPath $dotnet)) { throw '请安装 .NET 10 SDK 后再构建。' }
-if (-not $OutputDirectory) { $OutputDirectory = Join-Path $repo 'release\winui-v2.0.0' }
+$version = (Get-Content package.json -Raw | ConvertFrom-Json).version
+if (-not $OutputDirectory) { $OutputDirectory = Join-Path $repo "release\winui-v$version" }
 pnpm exec vite build --config vite.winui.config.ts
 if ($LASTEXITCODE -ne 0) { throw '排版引擎构建失败。' }
 pnpm icon:build
 if ($LASTEXITCODE -ne 0) { throw '应用图标生成失败。' }
-& $dotnet publish native\WinUI\Raphael.WinUI.csproj -c Release -r win-x64 --self-contained true -o $OutputDirectory -v minimal
+& $dotnet publish native\WinUI\Raphael.WinUI.csproj -c Release -r win-x64 --self-contained true -o $OutputDirectory -p:Version=$version -v minimal
 if ($LASTEXITCODE -ne 0) { throw 'WinUI 程序构建失败。' }
 foreach ($oldAsset in (Get-ChildItem -LiteralPath (Join-Path $OutputDirectory 'Web\assets') -File -ErrorAction SilentlyContinue)) {
     if ($oldAsset.Name -match '^index-.+\.(js|css)$' -and -not (Test-Path -LiteralPath (Join-Path (Join-Path $repo 'native\WinUI\Web\assets') $oldAsset.Name))) {
@@ -18,6 +19,7 @@ foreach ($oldAsset in (Get-ChildItem -LiteralPath (Join-Path $OutputDirectory 'W
     }
 }
 Copy-Item -LiteralPath (Join-Path $repo 'native\README.md') -Destination (Join-Path $OutputDirectory '使用说明.md')
+Copy-Item -LiteralPath (Join-Path $repo 'docs\INSTALL.md') -Destination (Join-Path $OutputDirectory '安装与升级.md')
 $assets = Get-Content -LiteralPath (Join-Path $repo 'native\WinUI\obj\project.assets.json') -Raw | ConvertFrom-Json
 $packageRoot = $assets.packageFolders.PSObject.Properties.Name | Select-Object -First 1
 foreach ($library in $assets.libraries.PSObject.Properties) {

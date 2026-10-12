@@ -26,9 +26,10 @@ public sealed class MainWindow : Window
 {
     [DllImport("user32.dll")] static extern uint GetDpiForWindow(nint window);
     readonly Grid _root = new();
+    readonly Grid _titleBar = new() { Height = 32 };
     readonly TextBox _editor = new() { AcceptsReturn = true, TextWrapping = TextWrapping.Wrap, IsSpellCheckEnabled = false, IsTextPredictionEnabled = false, FontFamily = new FontFamily("Cascadia Mono"), FontSize = 15, Padding = new Thickness(20), BorderThickness = new Thickness(0), PlaceholderText = "先新建项目，再把 FlowUs 文章粘贴到这里。\n\n也可以直接输入 Markdown，右侧会实时预览。" };
     readonly WebView2 _preview = new();
-    readonly TextBlock _projectTitle = new() { Text = "公众号排版", FontSize = 14, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold };
+    readonly TextBlock _projectTitle = new() { Text = "公众号排版", FontSize = 20, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis, VerticalAlignment = VerticalAlignment.Center };
     readonly TextBlock _saveState = new() { Text = "新建项目后，文章会自动保存", FontSize = 12, Opacity = .65 };
     readonly TextBlock _words = new() { Text = "0 字", FontSize = 12, Opacity = .65 };
     readonly InfoBar _notice = new() { IsOpen = false, IsClosable = true, Margin = new Thickness(20, 0, 20, 12) };
@@ -80,6 +81,13 @@ public sealed class MainWindow : Window
         _renderTimer = DispatcherQueue.CreateTimer(); _renderTimer.Interval = TimeSpan.FromMilliseconds(140); _renderTimer.IsRepeating = false;
         _renderTimer.Tick += async (_, _) => { try { await RenderAsync(); } catch (Exception error) { ShowNotice("预览失败：" + error.Message, true); } };
         BuildLayout(); Content = _root;
+        if (AppWindowTitleBar.IsCustomizationSupported())
+        {
+            ExtendsContentIntoTitleBar = true;
+            SetTitleBar(_titleBar);
+            _titleBar.SizeChanged += (_, _) => UpdateTitleBarInsets();
+            _titleBar.Loaded += (_, _) => UpdateTitleBarInsets();
+        }
         _root.Loaded += async (_, _) => { if (!_initialized) { _initialized = true; await InitializeAsync(); } };
         _editor.TextChanged += (_, _) =>
         {
@@ -106,58 +114,59 @@ public sealed class MainWindow : Window
     {
         _root.RowDefinitions.Add(new() { Height = GridLength.Auto });
         _root.RowDefinitions.Add(new() { Height = GridLength.Auto });
+        _root.RowDefinitions.Add(new() { Height = GridLength.Auto });
         _root.RowDefinitions.Add(new() { Height = new GridLength(1, GridUnitType.Star) });
         _root.RowDefinitions.Add(new() { Height = GridLength.Auto });
-        var header = new Grid { Padding = new Thickness(24, 18, 24, 16), ColumnSpacing = 20 };
-        header.ColumnDefinitions.Add(new() { Width = new GridLength(1, GridUnitType.Star) }); header.ColumnDefinitions.Add(new() { Width = GridLength.Auto });
-        var brand = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 14, VerticalAlignment = VerticalAlignment.Center };
+        var caption = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, Margin = new Thickness(16, 0, 0, 0), VerticalAlignment = VerticalAlignment.Center };
         var logo = Path.Combine(AppContext.BaseDirectory, "icon.png");
-        if (File.Exists(logo)) brand.Children.Add(new Image { Source = new BitmapImage(new Uri(logo)), Width = 40, Height = 40 });
-        var brandText = new StackPanel { Spacing = 3 }; brandText.Children.Add(new TextBlock { Text = "Raphael Publish", FontSize = 22, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold }); brandText.Children.Add(_projectTitle); brand.Children.Add(brandText);
+        if (File.Exists(logo)) caption.Children.Add(new Image { Source = new BitmapImage(new Uri(logo)), Width = 16, Height = 16 });
+        caption.Children.Add(new TextBlock { Text = "Raphael Publish · WinUI", FontSize = 12, Opacity = .8 });
+        _titleBar.Children.Add(caption); _root.Children.Add(_titleBar);
+        var header = new Grid { Padding = new Thickness(20, 16, 20, 16), ColumnSpacing = 20 };
+        header.ColumnDefinitions.Add(new() { Width = new GridLength(1, GridUnitType.Star) }); header.ColumnDefinitions.Add(new() { Width = GridLength.Auto });
+        header.RowDefinitions.Add(new() { Height = GridLength.Auto }); header.RowDefinitions.Add(new() { Height = GridLength.Auto });
+        var brand = new Grid { ColumnSpacing = 14 };
+        brand.ColumnDefinitions.Add(new() { Width = GridLength.Auto }); brand.ColumnDefinitions.Add(new() { Width = new GridLength(1, GridUnitType.Star) });
+        brand.Children.Add(_projectsButton); Grid.SetColumn(_projectTitle, 1); brand.Children.Add(_projectTitle);
         header.Children.Add(brand);
         var actions = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 10, VerticalAlignment = VerticalAlignment.Center };
-        actions.Children.Add(_progress); actions.Children.Add(_projectsButton); actions.Children.Add(_updateButton); actions.Children.Add(_draftButton);
-        Grid.SetColumn(actions, 1); header.Children.Add(actions); _root.Children.Add(header);
+        _copyButton.Style = Application.Current.Resources["AccentButtonStyle"] as Style;
+        _copyButton.Click += async (_, _) => await GuardAsync(CopyRichAsync);
+        var more = new Button { Content = "更多", Flyout = BuildOutputMenu() };
+        actions.Children.Add(_progress); actions.Children.Add(_copyButton); actions.Children.Add(_draftButton); actions.Children.Add(more);
+        Grid.SetColumn(actions, 1); header.Children.Add(actions); Grid.SetRow(header, 1); _root.Children.Add(header);
         _projectsButton.Click += async (_, _) => await GuardAsync(ShowProjectsAsync);
         _updateButton.Click += async (_, _) => await GuardAsync(UpdateImagesAsync);
         _draftButton.Click += async (_, _) => await GuardAsync(ShowPublishAsync);
-        var toolbar = new Grid { Padding = new Thickness(24, 4, 24, 14), ColumnSpacing = 18 };
+        var toolbar = new Grid { Padding = new Thickness(20, 0, 20, 16), ColumnSpacing = 18 };
         toolbar.ColumnDefinitions.Add(new() { Width = new GridLength(1, GridUnitType.Star) }); toolbar.ColumnDefinitions.Add(new() { Width = GridLength.Auto });
         toolbar.RowDefinitions.Add(new() { Height = GridLength.Auto }); toolbar.RowDefinitions.Add(new() { Height = GridLength.Auto });
         var styleControls = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 12, VerticalAlignment = VerticalAlignment.Center };
         styleControls.Children.Add(new TextBlock { Text = "排版主题", VerticalAlignment = VerticalAlignment.Center, Opacity = .7 }); styleControls.Children.Add(_themes);
         styleControls.Children.Add(_devices); _devices.Items.Add("电脑预览"); _devices.Items.Add("平板预览"); _devices.Items.Add("手机预览"); _devices.SelectedIndex = 0;
         styleControls.Children.Add(_sync); toolbar.Children.Add(styleControls);
-        var exportControls = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 10 };
-        var exportButton = new Button { Content = "导出" }; var exports = new MenuFlyout();
-        var html = new MenuFlyoutItem { Text = "导出 HTML", Icon = new SymbolIcon(Symbol.Document) }; html.Click += async (_, _) => await GuardAsync(ExportHtmlAsync);
-        var pdf = new MenuFlyoutItem { Text = "导出 PDF", Icon = new SymbolIcon(Symbol.Print) }; pdf.Click += async (_, _) => await GuardAsync(ExportPdfAsync);
-        exports.Items.Add(html); exports.Items.Add(pdf); exportButton.Flyout = exports;
-        var plain = new Button { Content = "复制纯文本" }; plain.Click += async (_, _) => await GuardAsync(async () => { NativeServices.Copy((await RequestAsync("plain"))?.GetValue<string>() ?? ""); ShowNotice("纯文本已复制"); });
-        _copyButton.Style = Application.Current.Resources["AccentButtonStyle"] as Style;
-        _copyButton.Click += async (_, _) => await GuardAsync(CopyRichAsync);
-        exportControls.Children.Add(exportButton); exportControls.Children.Add(plain); exportControls.Children.Add(_copyButton); Grid.SetColumn(exportControls, 1); toolbar.Children.Add(exportControls);
-        Grid.SetRow(toolbar, 1); _root.Children.Add(toolbar);
+        Grid.SetRow(toolbar, 2); _root.Children.Add(toolbar);
         var panes = new Grid { Margin = new Thickness(20, 0, 20, 12), ColumnSpacing = 12 };
         panes.ColumnDefinitions.Add(new() { Width = new GridLength(5, GridUnitType.Star) }); panes.ColumnDefinitions.Add(new() { Width = new GridLength(6, GridUnitType.Star) });
-        var editorPane = Pane("文章编辑", _editor); panes.Children.Add(editorPane);
+        var editorPane = Pane("文章编辑", _editor, _updateButton); panes.Children.Add(editorPane);
         var previewPane = Pane("排版预览 · 点击段落可定位原文", _preview); Grid.SetColumn(previewPane, 1); panes.Children.Add(previewPane);
         panes.RowDefinitions.Add(new() { Height = new GridLength(1, GridUnitType.Star) }); panes.RowDefinitions.Add(new() { Height = new GridLength(0) });
         _root.SizeChanged += (_, _) =>
         {
-            var narrowToolbar = _root.ActualWidth < 1150;
-            Grid.SetColumn(exportControls, narrowToolbar ? 0 : 1); Grid.SetRow(exportControls, narrowToolbar ? 1 : 0);
-            exportControls.Margin = new Thickness(0, narrowToolbar ? 12 : 0, 0, 0);
+            var narrowHeader = _root.ActualWidth < 1050;
+            Grid.SetColumn(actions, narrowHeader ? 0 : 1); Grid.SetRow(actions, narrowHeader ? 1 : 0);
+            Grid.SetColumnSpan(brand, narrowHeader ? 2 : 1);
+            actions.Margin = new Thickness(0, narrowHeader ? 12 : 0, 0, 0);
             var stacked = _root.ActualWidth < 950;
             Grid.SetColumn(previewPane, stacked ? 0 : 1); Grid.SetRow(previewPane, stacked ? 1 : 0);
             Grid.SetColumnSpan(editorPane, stacked ? 2 : 1); Grid.SetColumnSpan(previewPane, stacked ? 2 : 1);
             panes.RowDefinitions[1].Height = stacked ? new GridLength(1, GridUnitType.Star) : new GridLength(0);
             panes.RowSpacing = stacked ? 12 : 0;
         };
-        Grid.SetRow(panes, 2); _root.Children.Add(panes);
+        Grid.SetRow(panes, 3); _root.Children.Add(panes);
         var bottom = new StackPanel();
         var status = new Grid { Margin = new Thickness(24, 0, 24, 12) }; status.ColumnDefinitions.Add(new() { Width = new GridLength(1, GridUnitType.Star) }); status.ColumnDefinitions.Add(new() { Width = GridLength.Auto });
-        status.Children.Add(_saveState); Grid.SetColumn(_words, 1); status.Children.Add(_words); bottom.Children.Add(status); bottom.Children.Add(_notice); Grid.SetRow(bottom, 3); _root.Children.Add(bottom);
+        status.Children.Add(_saveState); Grid.SetColumn(_words, 1); status.Children.Add(_words); bottom.Children.Add(status); bottom.Children.Add(_notice); Grid.SetRow(bottom, 4); _root.Children.Add(bottom);
         ScrollViewer.SetVerticalScrollBarVisibility(_editor, ScrollBarVisibility.Auto);
         ScrollViewer.SetHorizontalScrollBarVisibility(_editor, ScrollBarVisibility.Disabled);
         var save = new KeyboardAccelerator { Key = Windows.System.VirtualKey.S, Modifiers = Windows.System.VirtualKeyModifiers.Control };
@@ -165,10 +174,29 @@ public sealed class MainWindow : Window
         var create = new KeyboardAccelerator { Key = Windows.System.VirtualKey.N, Modifiers = Windows.System.VirtualKeyModifiers.Control };
         create.Invoked += async (_, eventArgs) => { eventArgs.Handled = true; await GuardAsync(CreateProjectAsync); }; _root.KeyboardAccelerators.Add(create);
     }
-    Border Pane(string title, FrameworkElement body)
+    MenuFlyout BuildOutputMenu()
+    {
+        var menu = new MenuFlyout();
+        var plain = new MenuFlyoutItem { Text = "复制纯文本", Icon = new SymbolIcon(Symbol.Copy) };
+        plain.Click += async (_, _) => await GuardAsync(async () => { NativeServices.Copy((await RequestAsync("plain"))?.GetValue<string>() ?? ""); ShowNotice("纯文本已复制"); });
+        var html = new MenuFlyoutItem { Text = "导出 HTML", Icon = new SymbolIcon(Symbol.Document) }; html.Click += async (_, _) => await GuardAsync(ExportHtmlAsync);
+        var pdf = new MenuFlyoutItem { Text = "导出 PDF", Icon = new SymbolIcon(Symbol.Print) }; pdf.Click += async (_, _) => await GuardAsync(ExportPdfAsync);
+        menu.Items.Add(plain); menu.Items.Add(new MenuFlyoutSeparator()); menu.Items.Add(html); menu.Items.Add(pdf);
+        return menu;
+    }
+    void UpdateTitleBarInsets()
+    {
+        var scale = _root.XamlRoot?.RasterizationScale ?? 1;
+        _titleBar.Padding = new Thickness(AppWindow.TitleBar.LeftInset / scale, 0, AppWindow.TitleBar.RightInset / scale, 0);
+    }
+    Border Pane(string title, FrameworkElement body, FrameworkElement? action = null)
     {
         var grid = new Grid(); grid.RowDefinitions.Add(new() { Height = GridLength.Auto }); grid.RowDefinitions.Add(new() { Height = new GridLength(1, GridUnitType.Star) });
-        grid.Children.Add(new TextBlock { Text = title, Margin = new Thickness(18, 14, 18, 12), FontSize = 13, Opacity = .65 }); Grid.SetRow(body, 1); grid.Children.Add(body);
+        var heading = new Grid { Margin = new Thickness(18, 10, 12, 10) };
+        heading.ColumnDefinitions.Add(new() { Width = new GridLength(1, GridUnitType.Star) }); heading.ColumnDefinitions.Add(new() { Width = GridLength.Auto });
+        heading.Children.Add(new TextBlock { Text = title, FontSize = 13, Opacity = .65, VerticalAlignment = VerticalAlignment.Center });
+        if (action is not null) { Grid.SetColumn(action, 1); heading.Children.Add(action); }
+        grid.Children.Add(heading); Grid.SetRow(body, 1); grid.Children.Add(body);
         var border = new Border { Child = grid, CornerRadius = new CornerRadius(8), BorderThickness = new Thickness(1) }; _cards.Add(border); return border;
     }
 
@@ -177,6 +205,16 @@ public sealed class MainWindow : Window
         _dark = _uiSettings.GetColorValue(UIColorType.Background).R < 128;
         _root.RequestedTheme = _dark ? ElementTheme.Dark : ElementTheme.Light;
         _root.Background = new SolidColorBrush(_dark ? Windows.UI.Color.FromArgb(255, 32, 32, 32) : Windows.UI.Color.FromArgb(255, 247, 247, 247));
+        var title = AppWindow.TitleBar;
+        var background = _dark ? Windows.UI.Color.FromArgb(255, 32, 32, 32) : Windows.UI.Color.FromArgb(255, 247, 247, 247);
+        var foreground = _dark ? Colors.White : Colors.Black;
+        title.BackgroundColor = title.InactiveBackgroundColor = background;
+        title.ForegroundColor = title.ButtonForegroundColor = foreground;
+        title.ButtonBackgroundColor = title.ButtonInactiveBackgroundColor = background;
+        title.InactiveForegroundColor = title.ButtonInactiveForegroundColor = _dark ? Colors.Gray : Colors.DarkGray;
+        title.ButtonHoverBackgroundColor = _dark ? Windows.UI.Color.FromArgb(255, 55, 55, 55) : Windows.UI.Color.FromArgb(255, 225, 225, 225);
+        title.ButtonPressedBackgroundColor = _dark ? Windows.UI.Color.FromArgb(255, 65, 65, 65) : Windows.UI.Color.FromArgb(255, 210, 210, 210);
+        title.ButtonHoverForegroundColor = title.ButtonPressedForegroundColor = foreground;
         foreach (var card in _cards)
         {
             card.Background = new SolidColorBrush(_dark ? Windows.UI.Color.FromArgb(255, 43, 43, 43) : Colors.White);

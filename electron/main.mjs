@@ -8,6 +8,8 @@ import { publishWechatDraft } from './wechat-publisher.mjs'
 
 const currentDirectory = dirname(fileURLToPath(import.meta.url))
 const appRoot = resolve(currentDirectory, `..`)
+// Keep existing Web UI settings when the installed product gets a clearer name.
+app.setPath('userData', process.env.RAPHAEL_USER_DATA_ROOT || join(app.getPath('appData'), 'raphael-publish'))
 
 protocol.registerSchemesAsPrivileged([{
   scheme: `raphael-asset`,
@@ -53,7 +55,7 @@ async function readPublisherSettings() {
 }
 
 async function savePublisherSettings(payload) {
-  if (!safeStorage.isEncryptionAvailable()) throw new Error(`Windows 本机加密不可用，不能安全保存 AppSecret。`)
+  if (!safeStorage.isEncryptionAvailable()) throw new Error(`系统本机加密不可用，不能安全保存 AppSecret。`)
   const current = await readPublisherSettings()
   const appId = String(payload.appId || current.appId || ``).trim()
   const appSecret = String(payload.appSecret || current.appSecret || ``).trim()
@@ -157,7 +159,7 @@ function createWindow() {
     },
   })
 
-  window.once(`ready-to-show`, () => window.show())
+  window.once(`ready-to-show`, () => { if (process.env.RAPHAEL_TEST_MODE !== '1') window.show() })
   window.webContents.setWindowOpenHandler(({ url }) => {
     if (/^https?:\/\//i.test(url)) void shell.openExternal(url)
     return { action: `deny` }

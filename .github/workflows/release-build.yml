@@ -1,0 +1,83 @@
+name: Build release installers
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.19.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm test
+      - run: pnpm test:desktop-backend
+      - run: pnpm test:wechat-publisher
+      - run: dotnet run --project native/Tests/Raphael.Core.Tests.csproj -c Release
+      - name: Install Chromium for logo generation
+        run: pnpm exec playwright install chromium
+      - name: Build Windows Web UI installer
+        run: pnpm webui:installer:win
+      - name: Build Windows WinUI installer
+        # Inno Setup 6.7 supports a system-themed installation wizard.
+        # The hosted Windows image includes Inno Setup; fail visibly if absent.
+        run: pnpm winui:installer
+      - name: Verify packaged Windows Web UI app
+        run: pnpm exec node scripts/test-webui-app.mjs "release/win-unpacked/Raphael Publish Web UI.exe"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: installers-windows-x64
+          path: release/*-Setup.exe
+          if-no-files-found: error
+          retention-days: 14
+
+  macos:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-15
+            arch: arm64
+          - runner: macos-15-intel
+            arch: x64
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.19.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm test
+      - run: pnpm test:desktop-backend
+      - run: pnpm test:wechat-publisher
+      - run: pnpm exec playwright install chromium
+      - name: Build macOS Web UI disk image
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+        run: pnpm webui:installer:mac --${{ matrix.arch }}
+      - name: Verify packaged app launches and works
+        run: pnpm exec node scripts/test-webui-app.mjs "release/mac${{ matrix.arch == 'arm64' && '-arm64' || '' }}/Raphael Publish Web UI.app/Contents/MacOS/Raphael Publish Web UI"
+      - name: Verify DMG integrity
+        run: hdiutil verify release/*.dmg
+      - uses: actions/upload-artifact@v4
+        with:
+          name: installer-macos-${{ matrix.arch }}
+          path: release/*.dmg
+          if-no-files-found: error
+          retention-days: 14

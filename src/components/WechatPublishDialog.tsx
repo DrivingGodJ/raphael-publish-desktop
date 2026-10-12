@@ -111,7 +111,7 @@ export default function WechatPublishDialog({ open, defaultTitle, onClose, onSub
 
                         <div className="mt-5 rounded-2xl border border-black/10 p-4 dark:border-white/10">
                             <div className="flex items-center gap-2 font-semibold"><ShieldCheck size={18} />公众号开发凭据</div>
-                            <p className="mt-1 text-xs leading-5 text-[#86868b]">凭据由 Windows 本机加密保存，只用于直接请求微信官方接口，不发送给第三方服务。</p>
+                            <p className="mt-1 text-xs leading-5 text-[#86868b]">凭据由系统本机加密保存，只用于直接请求微信官方接口，不发送给第三方服务。</p>
                             <div className="mt-3 grid gap-3 sm:grid-cols-2">
                                 <input aria-label="公众号 AppID" placeholder="AppID" value={appId} onChange={event => setAppId(event.target.value)} className="rounded-xl border border-black/10 bg-[#f5f5f7] px-4 py-3 outline-none focus:border-[#0066cc] dark:border-white/10 dark:bg-[#2c2c2e]" />
                                 <input aria-label="公众号 AppSecret" type="password" placeholder={hasStoredSecret ? '已安全保存，留空即可' : 'AppSecret'} value={appSecret} onChange={event => setAppSecret(event.target.value)} className="rounded-xl border border-black/10 bg-[#f5f5f7] px-4 py-3 outline-none focus:border-[#0066cc] dark:border-white/10 dark:bg-[#2c2c2e]" />

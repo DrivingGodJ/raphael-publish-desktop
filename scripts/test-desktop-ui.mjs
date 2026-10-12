@@ -1,8 +1,9 @@
 import { chromium } from '@playwright/test'
+import { existsSync } from 'node:fs'
 
 const appUrl = process.env.RAPHAEL_TEST_URL || `http://127.0.0.1:4173/`
 const edgePath = `C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe`
-const browser = await chromium.launch({ executablePath: edgePath, headless: true })
+const browser = await chromium.launch({ executablePath: process.env.RAPHAEL_BROWSER_PATH || (process.platform === 'win32' && existsSync(edgePath) ? edgePath : undefined), headless: true })
 const context = await browser.newContext({ viewport: { width: 1500, height: 960 }, colorScheme: `dark` })
 
 await context.addInitScript(() => {

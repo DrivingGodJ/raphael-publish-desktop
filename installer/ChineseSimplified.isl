@@ -1,0 +1,86 @@
+; Original translations for this project's installation workflow, MIT.
+; Untranslated diagnostic messages fall back to Inno Setup's English messages.
+[LangOptions]
+LanguageName=简体中文
+LanguageID=$0804
+LanguageCodePage=0
+DialogFontName=Microsoft YaHei UI
+
+[Messages]
+SetupAppTitle=安装程序
+SetupWindowTitle=安装 - %1
+UninstallAppTitle=卸载程序
+UninstallAppFullTitle=卸载 %1
+InformationTitle=提示
+ConfirmTitle=确认
+ErrorTitle=错误
+SetupLdrStartupMessage=即将安装 %1，是否继续？
+SetupAlreadyRunning=安装程序已经在运行
+WindowsVersionNotSupported=当前 Windows 版本不受支持
+WinVersionTooLowError=本程序需要 %1 %2 或更新版本
+SetupAppRunningError=%1 正在运行。%n%n请先关闭应用，然后点击“确定”继续，或点击“取消”退出。
+UninstallAppRunningError=%1 正在运行。%n%n请先关闭应用，然后点击“确定”继续，或点击“取消”退出。
+ExitSetupTitle=退出安装
+ExitSetupMessage=安装尚未完成，确定要退出吗？
+ButtonBack=< 上一步(&B)
+ButtonNext=下一步(&N) >
+ButtonInstall=安装(&I)
+ButtonOK=确定
+ButtonCancel=取消
+ButtonYes=是(&Y)
+ButtonYesToAll=全部是(&A)
+ButtonNo=否(&N)
+ButtonNoToAll=全部否(&O)
+ButtonFinish=完成(&F)
+ButtonBrowse=浏览(&B)...
+ButtonWizardBrowse=浏览(&R)...
+ButtonNewFolder=新建文件夹(&M)
+SelectLanguageTitle=选择安装语言
+SelectLanguageLabel=请选择安装时使用的语言。
+ClickNext=点击“下一步”继续，或点击“取消”退出。
+BrowseDialogTitle=选择文件夹
+BrowseDialogLabel=选择目标文件夹，然后点击“确定”。
+NewFolderName=新建文件夹
+WelcomeLabel1=欢迎使用 [name] 安装向导
+WelcomeLabel2=此向导将安装 [name/ver]。%n%n请先关闭正在运行的同版应用。
+WizardLicense=开源许可协议
+LicenseLabel=继续前请阅读开源许可协议。
+LicenseLabel3=请阅读并接受以下许可协议，再继续安装。
+LicenseAccepted=我接受此协议(&A)
+LicenseNotAccepted=我不接受此协议(&D)
+WizardSelectDir=选择安装位置
+SelectDirDesc=将 [name] 安装到哪里？
+SelectDirLabel3=应用将安装到以下文件夹。
+SelectDirBrowseLabel=点击“下一步”继续；点击“浏览”可以更改安装位置。
+DiskSpaceGBLabel=至少需要 [gb] GB 可用空间。
+DiskSpaceMBLabel=至少需要 [mb] MB 可用空间。
+DirExistsTitle=文件夹已存在
+DirExists=文件夹 %1 已存在。是否安装到此文件夹？
+WizardSelectTasks=快捷方式
+SelectTasksDesc=请选择附加选项。
+SelectTasksLabel2=选择安装 [name] 时创建的快捷方式，然后点击“下一步”。
+WizardReady=准备安装
+ReadyLabel1=现在可以开始安装 [name]。
+ReadyLabel2a=点击“安装”开始，或点击“上一步”修改设置。
+ReadyLabel2b=点击“安装”开始。
+ReadyMemoDir=安装位置：
+ReadyMemoTasks=附加选项：
+WizardPreparing=准备安装
+PreparingDesc=正在准备安装 [name]。
+CannotContinue=无法继续，请点击“取消”退出。
+WizardInstalling=正在安装
+InstallingLabel=请稍候，正在安装 [name]。
+StatusExtractFiles=正在解压文件...
+StatusCreateIcons=正在创建快捷方式...
+StatusCreateRegistryEntries=正在注册应用...
+FinishedHeadingLabel=[name] 安装完成
+FinishedLabelNoIcons=[name] 已安装。点击“完成”退出。
+FinishedLabel=[name] 已安装，可通过桌面或开始菜单启动。点击“完成”退出。
+ConfirmUninstall=确定要卸载 %1 吗？项目正文、图片与用户设置会保留。
+UninstallStatusLabel=正在卸载 %1，请稍候。
+UninstalledAll=%1 已卸载。文章、图片与用户设置未被删除。
+
+[CustomMessages]
+CreateDesktopIcon=创建桌面快捷方式(&D)
+AdditionalIcons=快捷方式：
+LaunchProgram=启动 %1
