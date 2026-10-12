@@ -1,0 +1,52 @@
+name: Upload verified installers to draft release
+
+on:
+  workflow_dispatch:
+    inputs:
+      build_run_id:
+        description: Successful Build release installers run ID
+        required: true
+        type: string
+      tag:
+        description: Existing draft release tag, e.g. v2.0.0
+        required: true
+        type: string
+
+permissions:
+  contents: write
+  actions: read
+
+jobs:
+  upload:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      BUILD_RUN_ID: ${{ inputs.build_run_id }}
+      RELEASE_TAG: ${{ inputs.tag }}
+      REPOSITORY: ${{ github.repository }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - name: Verify build and draft release match
+        shell: bash
+        run: |
+          node --input-type=module -e '
+          import { execFileSync } from "node:child_process";
+          const { BUILD_RUN_ID: id, RELEASE_TAG: tag, REPOSITORY: repo } = process.env;
+          if (!/^\d+$/.test(id) || !/^v\d+\.\d+\.\d+$/.test(tag)) throw Error("Invalid input");
+          const run = JSON.parse(execFileSync("gh", ["api", `repos/${repo}/actions/runs/${id}`]));
+          const release = JSON.parse(execFileSync("gh", ["release", "view", tag, "--repo", repo, "--json", "isDraft,targetCommitish"]));
+          if (run.status !== "completed" || run.conclusion !== "success" || !run.path.startsWith(".github/workflows/release-build.yml") || !release.isDraft || release.targetCommitish !== run.head_sha) throw Error("Only a successful matching build can be uploaded to this draft");
+          '
+      - uses: actions/download-artifact@v4
+        with:
+          github-token: ${{ github.token }}
+          run-id: ${{ inputs.build_run_id }}
+          path: release-assets
+          merge-multiple: true
+      - name: Generate verified file checksums
+        run: node scripts/release-checksums.mjs release-assets "${RELEASE_TAG#v}"
+      - name: Upload to draft only, do not publish
+        run: gh release upload "$RELEASE_TAG" release-assets/* --repo "$REPOSITORY" --clobber
