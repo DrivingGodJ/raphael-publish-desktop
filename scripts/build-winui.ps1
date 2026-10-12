@@ -20,6 +20,8 @@ foreach ($oldAsset in (Get-ChildItem -LiteralPath (Join-Path $OutputDirectory 'W
 }
 Copy-Item -LiteralPath (Join-Path $repo 'native\README.md') -Destination (Join-Path $OutputDirectory '使用说明.md')
 Copy-Item -LiteralPath (Join-Path $repo 'docs\INSTALL.md') -Destination (Join-Path $OutputDirectory '安装与升级.md')
+node scripts/collect-web-licenses.mjs (Join-Path $OutputDirectory 'ThirdPartyLicenses\npm')
+if ($LASTEXITCODE -ne 0) { throw 'JavaScript 依赖许可收集失败。' }
 $assets = Get-Content -LiteralPath (Join-Path $repo 'native\WinUI\obj\project.assets.json') -Raw | ConvertFrom-Json
 $packageRoot = $assets.packageFolders.PSObject.Properties.Name | Select-Object -First 1
 foreach ($library in $assets.libraries.PSObject.Properties) {
