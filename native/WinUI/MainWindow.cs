@@ -204,9 +204,10 @@ public sealed class MainWindow : Window
     {
         _dark = _uiSettings.GetColorValue(UIColorType.Background).R < 128;
         _root.RequestedTheme = _dark ? ElementTheme.Dark : ElementTheme.Light;
-        _root.Background = new SolidColorBrush(_dark ? Windows.UI.Color.FromArgb(255, 32, 32, 32) : Windows.UI.Color.FromArgb(255, 247, 247, 247));
+        // Keep the window surface clear so the system Mica backdrop remains visible.
+        _root.Background = new SolidColorBrush(Colors.Transparent);
         var title = AppWindow.TitleBar;
-        var background = _dark ? Windows.UI.Color.FromArgb(255, 32, 32, 32) : Windows.UI.Color.FromArgb(255, 247, 247, 247);
+        var background = Colors.Transparent;
         var foreground = _dark ? Colors.White : Colors.Black;
         title.BackgroundColor = title.InactiveBackgroundColor = background;
         title.ForegroundColor = title.ButtonForegroundColor = foreground;

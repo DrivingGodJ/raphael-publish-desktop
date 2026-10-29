@@ -15,7 +15,7 @@
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <ApplicationIcon>..\..\build\icon.ico</ApplicationIcon>
     <AssemblyName>Raphael Publish WinUI</AssemblyName>
-    <Version>2.0.0</Version>
+    <Version>2.0.1</Version>
     <DefineConstants>$(DefineConstants);DISABLE_XAML_GENERATED_MAIN</DefineConstants>
   </PropertyGroup>
   <ItemGroup>
