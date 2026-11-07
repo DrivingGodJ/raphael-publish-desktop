@@ -1,45 +1,48 @@
+**简体中文** | [English](README.en.md)
+
 # Raphael Publish Desktop
 
-基于 [Raphael Publish](https://github.com/liuxiaopai-ai/raphael-publish) 改造的本地公众号排版编辑器。这是社区二次开发项目，并非原项目官方桌面版。原项目的 MIT 许可证、版权声明与 Git 历史继续保留，详见 [NOTICE.md](NOTICE.md) 与 [LICENSE](LICENSE)。
+面向微信公众号的本地排版编辑器：从 FlowUs 粘贴文章，整理图片，选择主题并预览，再复制到公众号或创建草稿。
 
-## 下载与版本选择
+[下载最新安装包](https://github.com/DrivingGodJ/raphael-publish-desktop/releases/latest) · [安装与升级](docs/INSTALL.md) · [Web UI 使用](LOCAL-README.md) · [WinUI 使用](native/README.md)
 
-[下载最新安装包](https://github.com/DrivingGodJ/raphael-publish-desktop/releases/latest)。从 2.0.0 开始，同一 Release 分发两个界面版本：
+本项目基于 [Raphael Publish](https://github.com/liuxiaopai-ai/raphael-publish) 二次开发，是社区桌面版本，与原项目官方无隶属关系。
 
-| 平台 | 首选版本 | 安装包 |
+## 功能特性
+
+- **本地项目**：正文自动保存，每篇文章的图片单独管理，两种界面共用项目格式。
+- **图片整理**：下载新图、复用已有图片，不再引用的图片移入回收站/废纸篓。
+- **排版与预览**：30 个主题，电脑、平板和手机宽度预览。
+- **交付文章**：复制富文本或纯文本、导出 HTML/PDF，可选通过微信官方接口创建草稿。
+- **两种界面**：Windows 原生 WinUI 与 Windows/macOS 的 Electron Web UI。
+
+## 快速开始
+
+从同一 Release 中选择对应平台和界面：
+
+| 平台 | 版本 | 安装包 |
 | --- | --- | --- |
-| Windows 10 2004 / Windows 11，x64 | **WinUI 版（推荐）** | `Raphael-Publish-WinUI-版本-windows-x64-Setup.exe` |
-| Windows 10 / Windows 11，x64 | Web UI 版（备选） | `Raphael-Publish-WebUI-版本-windows-x64-Setup.exe` |
-| Mac，Apple Silicon（M 系列） | Web UI 版 | `Raphael-Publish-WebUI-版本-macos-arm64.dmg` |
-| Mac，Intel | Web UI 版 | `Raphael-Publish-WebUI-版本-macos-x64.dmg` |
+| Windows 10 2004+/11，x64 | WinUI，推荐 | `Raphael-Publish-WinUI-版本-windows-x64-Setup.exe` |
+| Windows 10/11，x64 | Web UI，备选 | `Raphael-Publish-WebUI-版本-windows-x64-Setup.exe` |
+| Apple Silicon Mac | Web UI | `Raphael-Publish-WebUI-版本-macos-arm64.dmg` |
+| Intel Mac | Web UI | `Raphael-Publish-WebUI-版本-macos-x64.dmg` |
 
-WinUI 版使用 Windows 原生窗口、菜单、编辑器与对话框；Web UI 版使用 Electron 保留原网页交互。两版使用同一套排版引擎、30 个主题和项目格式。两版都无需常驻本地服务器，关闭主窗口即退出。
+Windows 运行 Setup，为当前用户安装，无需管理员权限。WinUI 包含 .NET 和 Windows App SDK，缺少 WebView2 时安装器会联网安装。Mac 打开匹配芯片的 DMG，将应用拖入 Applications。
 
-### 安装、升级与卸载
+升级前关闭应用，再运行同类型新安装包；Mac 覆盖旧应用。卸载不删除文章和图片。两版可并存，但不要同时编辑同一项目；默认项目位于“文档/Documents/Raphael公众号项目”。详细提示见安装文档。
 
-Windows：运行对应 `Setup.exe`，按向导安装到当前用户目录，不要求管理员权限。安装器创建带 Logo 的桌面/开始菜单快捷方式；WinUI 版已包含 .NET 与 Windows App SDK，需要的 WebView2 Runtime 会在缺失时联网安装。
+## 使用说明
 
-Mac：打开与芯片类型对应的 DMG，将 `Raphael Publish Web UI.app` 拖入 Applications（应用程序），然后启动应用。
+1. 在“项目管理”中新建文章，粘贴 FlowUs 正文和图片。
+2. 点击“更新图片”，整理项目内图片。
+3. 选择主题和预览宽度，检查排版。
+4. 复制到公众号、导出文件，或创建公众号草稿。
 
-升级：先关闭应用，再运行同版本类型的新安装包；Mac 覆盖 Applications 内的旧应用。卸载仅移除程序，不删除文章或图片。详细说明及安全提示见 [安装与升级](docs/INSTALL.md)。
+草稿接口需自己的 AppID、AppSecret 和 IP 白名单。凭据只经本机系统加密保存，不经过第三方发布服务；Web UI 使用 Windows DPAPI/macOS Keychain，WinUI 使用 DPAPI。两版凭据独立，首次切换需重新填写。创建草稿后仍须去公众号后台检查并手动发表。关闭主窗口即退出，无需常驻本地服务器。
 
-两版可并存，项目默认保存在当前账户“文档/Documents/Raphael公众号项目”。不要同时用两个版本编辑同一项目。旧版项目无需导入；公众号凭据按界面版本分开加密保存，首次切换到 WinUI 需重新填写。
+## 开发与验证
 
-## 功能与使用流程
-
-1. 项目管理 → 新建项目，输入文章标题。
-2. 在 FlowUs 复制正文与图片，直接粘贴到编辑区；标题、强调段落等转换为 Markdown。
-3. 点击“更新图片”，下载新图、复用已有图片，并将不再使用的图片移入回收站/废纸篓。
-4. 选择排版主题，检查电脑、平板或手机预览。正文自动保存。
-5. 复制到公众号，或通过微信官方接口创建草稿；还可复制纯文本、导出 HTML/PDF。
-
-草稿接口可选，需要自行提供公众号 AppID、AppSecret 并配置 IP 白名单。凭据仅经本机系统加密保存，不经过第三方发布服务。创建草稿不会自动发表文章。Web UI 使用系统加密（Windows DPAPI / macOS Keychain），WinUI 使用 Windows DPAPI。
-
-详细使用说明：[Web UI](LOCAL-README.md) · [WinUI](native/README.md)。
-
-## 开发与构建
-
-需要 Node.js 24、pnpm 11。构建 WinUI 另外需要 Windows、.NET 10 SDK；生成 WinUI 安装器需要 Inno Setup 6.7+。Mac DMG 在 macOS 上构建。
+需要 **Node.js 24、pnpm 11**。WinUI 构建还需 Windows、.NET 10 SDK；生成安装器需 Inno Setup 6.7+。Mac DMG 在对应架构的 macOS 上构建。
 
 ```bash
 pnpm install --frozen-lockfile
@@ -48,16 +51,13 @@ pnpm desktop:dev
 ```
 
 ```bash
-# Windows：两种安装包
 pnpm webui:installer:win
 pnpm winui:installer
-
-# macOS：在对应架构的 Mac 上构建
 pnpm webui:installer:mac --arm64
 pnpm webui:installer:mac --x64
 ```
 
-安装包输出至 `release/`。WinUI 免安装目录可通过 `pnpm winui:pack` 构建；Web UI 免安装目录通过 `pnpm desktop:pack` 构建。分发免安装版时必须保留整个目录，不可只发送 EXE。
+按平台选择命令，安装包输出至 `release/`。免安装目录可用 `pnpm winui:pack` 或 `pnpm desktop:pack` 构建，分发须保留完整目录。
 
 ```bash
 pnpm test
@@ -66,8 +66,14 @@ pnpm test:wechat-publisher
 dotnet run --project native/Tests/Raphael.Core.Tests.csproj -c Release
 ```
 
-GitHub Actions 的 `Build release installers` 手动工作流会分别在 Windows、Apple Silicon Mac、Intel Mac 上构建安装包，并验证 Mac 打包应用的启动、项目存储与预览。工作流不自动发布；检查产物和 SHA256 后再建立 Release，统一使用 `package.json` 中的版本号。
+`Build release installers` 为手动构建工作流；检查产物与 SHA256 后再建立 Release，版本以 `package.json` 为准。文档中的开发命令不表示已完成各平台安装与真实公众号发布验收。
 
-## 授权与来源
+## 文档与支持
 
-本仓库遵循 MIT 许可，所用依赖各自遵循其许可证。发行包保留原项目 LICENSE、NOTICE 和相关第三方声明，不包含本地文章、公众号密钥或测试数据。详情见 [NOTICE.md](NOTICE.md)。
+- [安装、升级与卸载](docs/INSTALL.md)
+- [Web UI](LOCAL-README.md) · [WinUI](native/README.md)
+- [问题反馈](https://github.com/DrivingGodJ/raphael-publish-desktop/issues)
+
+## 许可与致谢
+
+[MIT License](LICENSE)。保留原项目版权、Git 历史及 [NOTICE.md](NOTICE.md)，依赖各遵循其条款。发行包包含许可证与第三方声明，不包含本地文章、密钥或测试数据。
