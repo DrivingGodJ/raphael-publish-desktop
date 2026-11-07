@@ -2,78 +2,42 @@
 
 # Raphael Publish Desktop
 
-A local editor for WeChat Official Account articles: paste from FlowUs, organize images, choose a theme, preview, then copy the result or create a draft.
+Take an article from collected content to WeChat typesetting locally. Paste the text, organize images, try themes, then copy, export or create a draft when the result is ready.
 
-[Download](https://github.com/DrivingGodJ/raphael-publish-desktop/releases/latest) · [Installation](docs/INSTALL.md) · [Web UI guide](LOCAL-README.en.md) · [WinUI guide](native/README.en.md)
+![Markdown content beside its typeset preview](media/screenshot.png)
 
-This community desktop adaptation is based on [Raphael Publish](https://github.com/liuxiaopai-ai/raphael-publish) and is not its official desktop edition.
+*The image shows the original web editor. Desktop editions reuse its typesetting engine with different window chrome and a native WinUI interface.*
 
-## Features
+## Start with the content you've written
 
-- **Local projects** with autosave, per-article image folders and a shared project format across interfaces.
-- **Image organization** downloads new images, reuses existing ones and moves unreferenced files to the Recycle Bin/Trash.
-- **Typesetting and preview** offer 30 themes and desktop, tablet and phone preview widths.
-- **Article delivery** supports rich/plain-text copying, HTML/PDF export and optional drafts through WeChat's official API.
-- **Two interfaces**: native Windows WinUI and Electron Web UI for Windows/macOS.
+Paste an entire FlowUs article and convert headings, paragraphs and emphasized blocks to Markdown. Each article has its own project with autosave, ready to revisit later.
 
-## Quick start
+## Keep images with the article
 
-Choose the platform and interface from the same Release:
+Update images to download new links, reuse saved files and move unreferenced images to the Recycle Bin or Trash. Text and images stay in one project folder instead of accumulating loose files across revisions.
 
-| Platform | Edition | Package |
-| --- | --- | --- |
-| Windows 10 2004+/11, x64 | WinUI, recommended | `Raphael-Publish-WinUI-版本-windows-x64-Setup.exe` |
-| Windows 10/11, x64 | Web UI, alternative | `Raphael-Publish-WebUI-版本-windows-x64-Setup.exe` |
-| Apple Silicon Mac | Web UI | `Raphael-Publish-WebUI-版本-macos-arm64.dmg` |
-| Intel Mac | Web UI | `Raphael-Publish-WebUI-版本-macos-x64.dmg` |
+## See the same article in different layouts
 
-`版本` represents the release version in the package name. On Windows, run Setup for a per-user installation without administrator privileges. WinUI bundles .NET and Windows App SDK; the installer downloads WebView2 if missing. On Mac, open the matching DMG and drag the app to Applications.
+Choose among 30 themes and preview desktop, tablet and phone widths. WinUI also links preview paragraphs to their source and synchronizes scrolling in both directions to make long articles easier to refine.
 
-Close the app before upgrading with the same edition's installer; replace the app on Mac. Uninstalling preserves articles and images. Both editions can coexist, but do not edit the same project simultaneously. Projects default to `Documents/Raphael公众号项目`. See the installation guide for details.
+## Deliver it the way you need
 
-## Usage
+Copy styled content to WeChat or export HTML, PDF and plain text. With your own Official Account configured, create a draft through the official API, then review and publish manually in the dashboard.
 
-1. Create an article in Project Management and paste FlowUs content and images.
-2. Update images to organize the project's local files.
-3. Select a theme and preview width, then check the layout.
-4. Copy to WeChat, export a file or create an Official Account draft.
+## Try it
 
-The optional draft API requires your AppID, AppSecret and IP allowlist. Credentials stay encrypted locally: Windows DPAPI/macOS Keychain for Web UI, DPAPI for WinUI. They do not pass through a third-party publishing service. Editions store credentials separately, so switching requires reentry. Draft creation still requires review and manual publication in WeChat's dashboard. Closing the main window exits the app; no persistent local server is required.
+[Download for Windows / macOS](https://github.com/DrivingGodJ/raphael-publish-desktop/releases/latest)
 
-## Development and checks
+Native WinUI is recommended on Windows, with Web UI as an alternative. Mac uses Web UI. See the [installation guide (Chinese)](docs/INSTALL.md) for edition selection and setup.
 
-Requires **Node.js 24 and pnpm 11**. WinUI additionally needs Windows and .NET 10 SDK; installers need Inno Setup 6.7+. Build Mac DMGs on the matching macOS architecture.
+## Explore further
 
-```bash
-pnpm install --frozen-lockfile
-pnpm exec playwright install chromium
-pnpm desktop:dev
-```
+| Topic | Documentation |
+| --- | --- |
+| Installation, upgrades and removal | [Installation guide (Chinese)](docs/INSTALL.md) |
+| Articles and projects | [Web UI](LOCAL-README.en.md) · [WinUI](native/README.en.md) |
+| Draft API, data and credentials | [User guide](docs/GUIDE.en.md) |
+| Source builds, tests and releases | [Development and checks](docs/GUIDE.en.md#development-and-checks) |
+| Feedback | [Issues](https://github.com/DrivingGodJ/raphael-publish-desktop/issues) |
 
-```bash
-pnpm webui:installer:win
-pnpm winui:installer
-pnpm webui:installer:mac --arm64
-pnpm webui:installer:mac --x64
-```
-
-Choose commands for your platform. Packages go to `release/`. Portable directories use `pnpm winui:pack` or `pnpm desktop:pack`; distribute the entire directory.
-
-```bash
-pnpm test
-pnpm test:desktop-backend
-pnpm test:wechat-publisher
-dotnet run --project native/Tests/Raphael.Core.Tests.csproj -c Release
-```
-
-`Build release installers` is manually dispatched. Inspect artifacts and SHA256 checksums before creating a Release, using the version in `package.json`. These documented commands do not imply completed platform-installation or live WeChat publishing acceptance.
-
-## Documentation and support
-
-- [Installation, upgrades and removal (Chinese)](docs/INSTALL.md)
-- [Web UI](LOCAL-README.en.md) · [WinUI](native/README.en.md)
-- [Report an issue](https://github.com/DrivingGodJ/raphael-publish-desktop/issues)
-
-## License and credits
-
-[MIT License](LICENSE). Original copyrights, Git history and [NOTICE.md](NOTICE.md) are preserved. Dependencies retain their own terms. Distributions include licenses and third-party notices, excluding local articles, secrets and test data.
+A community desktop adaptation of [Raphael Publish](https://github.com/liuxiaopai-ai/raphael-publish). [MIT License](LICENSE) · [Origins and credits](NOTICE.md)

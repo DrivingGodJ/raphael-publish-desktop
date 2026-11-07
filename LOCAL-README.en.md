@@ -30,4 +30,4 @@ Projects live under `Documents/Raphael公众号项目`, with one folder per arti
 
 ## Development and license
 
-See the [main development guide](README.en.md#development-and-checks) for builds and tests. This edition is based on [Raphael Publish](https://github.com/liuxiaopai-ai/raphael-publish) and preserves the [MIT license](LICENSE) and [NOTICE](NOTICE.md).
+See the [main development guide](docs/GUIDE.en.md#development-and-checks) for builds and tests. This edition is based on [Raphael Publish](https://github.com/liuxiaopai-ai/raphael-publish) and preserves the [MIT license](LICENSE) and [NOTICE](NOTICE.md).

@@ -2,78 +2,42 @@
 
 # Raphael Publish Desktop
 
-面向微信公众号的本地排版编辑器：从 FlowUs 粘贴文章，整理图片，选择主题并预览，再复制到公众号或创建草稿。
+把一篇文章，从内容整理到公众号排版留在本地完成。粘贴正文、整理图片、试选主题，看到满意的效果后再复制、导出或创建草稿。
 
-[下载最新安装包](https://github.com/DrivingGodJ/raphael-publish-desktop/releases/latest) · [安装与升级](docs/INSTALL.md) · [Web UI 使用](LOCAL-README.md) · [WinUI 使用](native/README.md)
+![Markdown 文章与排版效果对照](media/screenshot.png)
 
-本项目基于 [Raphael Publish](https://github.com/liuxiaopai-ai/raphael-publish) 二次开发，是社区桌面版本，与原项目官方无隶属关系。
+*图为原网页排版界面；桌面版沿用排版引擎，窗口和原生 WinUI 界面有所不同。*
 
-## 功能特性
+## 从写好的内容开始
 
-- **本地项目**：正文自动保存，每篇文章的图片单独管理，两种界面共用项目格式。
-- **图片整理**：下载新图、复用已有图片，不再引用的图片移入回收站/废纸篓。
-- **排版与预览**：30 个主题，电脑、平板和手机宽度预览。
-- **交付文章**：复制富文本或纯文本、导出 HTML/PDF，可选通过微信官方接口创建草稿。
-- **两种界面**：Windows 原生 WinUI 与 Windows/macOS 的 Electron Web UI。
+把 FlowUs 的整篇文章粘贴进编辑器，标题、正文和强调段落转换为 Markdown。每篇文章是独立项目，正文自动保存，可以随时回来继续修改。
 
-## 快速开始
+## 让图片跟着文章走
 
-从同一 Release 中选择对应平台和界面：
+点击“更新图片”，下载文中新增图片，复用已经保存的文件；不再引用的图片进入回收站或废纸篓。正文和图片放在同一个项目目录里，减少文章改了多次后留下的散乱文件。
 
-| 平台 | 版本 | 安装包 |
-| --- | --- | --- |
-| Windows 10 2004+/11，x64 | WinUI，推荐 | `Raphael-Publish-WinUI-版本-windows-x64-Setup.exe` |
-| Windows 10/11，x64 | Web UI，备选 | `Raphael-Publish-WebUI-版本-windows-x64-Setup.exe` |
-| Apple Silicon Mac | Web UI | `Raphael-Publish-WebUI-版本-macos-arm64.dmg` |
-| Intel Mac | Web UI | `Raphael-Publish-WebUI-版本-macos-x64.dmg` |
+## 在不同版面里看同一篇文章
 
-Windows 运行 Setup，为当前用户安装，无需管理员权限。WinUI 包含 .NET 和 Windows App SDK，缺少 WebView2 时安装器会联网安装。Mac 打开匹配芯片的 DMG，将应用拖入 Applications。
+从 30 个主题中选择风格，再切换电脑、平板与手机宽度预览。WinUI 版还支持点击预览段落定位原文，以及编辑与预览双向滚动同步，便于来回推敲长文。
 
-升级前关闭应用，再运行同类型新安装包；Mac 覆盖旧应用。卸载不删除文章和图片。两版可并存，但不要同时编辑同一项目；默认项目位于“文档/Documents/Raphael公众号项目”。详细提示见安装文档。
+## 完成后，按需要交付
 
-## 使用说明
+复制带样式的正文到公众号，或导出 HTML、PDF 和纯文本。配置自己的公众号后，也可以通过官方接口创建草稿，再到后台检查并手动发表。
 
-1. 在“项目管理”中新建文章，粘贴 FlowUs 正文和图片。
-2. 点击“更新图片”，整理项目内图片。
-3. 选择主题和预览宽度，检查排版。
-4. 复制到公众号、导出文件，或创建公众号草稿。
+## 开始体验
 
-草稿接口需自己的 AppID、AppSecret 和 IP 白名单。凭据只经本机系统加密保存，不经过第三方发布服务；Web UI 使用 Windows DPAPI/macOS Keychain，WinUI 使用 DPAPI。两版凭据独立，首次切换需重新填写。创建草稿后仍须去公众号后台检查并手动发表。关闭主窗口即退出，无需常驻本地服务器。
+[下载 Windows / macOS 安装包](https://github.com/DrivingGodJ/raphael-publish-desktop/releases/latest)
 
-## 开发与验证
+Windows 推荐原生 WinUI 版，也可选择 Web UI；Mac 使用 Web UI。安装与版本选择见[安装指南](docs/INSTALL.md)。
 
-需要 **Node.js 24、pnpm 11**。WinUI 构建还需 Windows、.NET 10 SDK；生成安装器需 Inno Setup 6.7+。Mac DMG 在对应架构的 macOS 上构建。
+## 进一步了解
 
-```bash
-pnpm install --frozen-lockfile
-pnpm exec playwright install chromium
-pnpm desktop:dev
-```
+| 想了解什么 | 去哪里看 |
+| --- | --- |
+| 安装、升级与卸载 | [安装指南](docs/INSTALL.md) |
+| 文章与项目怎么管理 | [Web UI 使用](LOCAL-README.md) · [WinUI 使用](native/README.md) |
+| 草稿接口、数据与凭据 | [使用指南](docs/GUIDE.zh-CN.md) |
+| 源码构建、测试与发行 | [开发与验证](docs/GUIDE.zh-CN.md#开发与验证) |
+| 问题反馈 | [Issues](https://github.com/DrivingGodJ/raphael-publish-desktop/issues) |
 
-```bash
-pnpm webui:installer:win
-pnpm winui:installer
-pnpm webui:installer:mac --arm64
-pnpm webui:installer:mac --x64
-```
-
-按平台选择命令，安装包输出至 `release/`。免安装目录可用 `pnpm winui:pack` 或 `pnpm desktop:pack` 构建，分发须保留完整目录。
-
-```bash
-pnpm test
-pnpm test:desktop-backend
-pnpm test:wechat-publisher
-dotnet run --project native/Tests/Raphael.Core.Tests.csproj -c Release
-```
-
-`Build release installers` 为手动构建工作流；检查产物与 SHA256 后再建立 Release，版本以 `package.json` 为准。文档中的开发命令不表示已完成各平台安装与真实公众号发布验收。
-
-## 文档与支持
-
-- [安装、升级与卸载](docs/INSTALL.md)
-- [Web UI](LOCAL-README.md) · [WinUI](native/README.md)
-- [问题反馈](https://github.com/DrivingGodJ/raphael-publish-desktop/issues)
-
-## 许可与致谢
-
-[MIT License](LICENSE)。保留原项目版权、Git 历史及 [NOTICE.md](NOTICE.md)，依赖各遵循其条款。发行包包含许可证与第三方声明，不包含本地文章、密钥或测试数据。
+基于 [Raphael Publish](https://github.com/liuxiaopai-ai/raphael-publish) 的社区桌面改造。[MIT License](LICENSE) · [来源与致谢](NOTICE.md)

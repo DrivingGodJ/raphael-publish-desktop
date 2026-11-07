@@ -30,4 +30,4 @@ AppSecret 使用 Windows DPAPI/macOS Keychain 加密保存于当前账户应用�
 
 ## 开发与许可
 
-开发、构建与测试见[项目首页](README.md#开发与验证)。本桌面版基于 [Raphael Publish](https://github.com/liuxiaopai-ai/raphael-publish)，保留 [MIT 许可证](LICENSE) 和 [NOTICE](NOTICE.md)。
+开发、构建与测试见[项目首页](docs/GUIDE.zh-CN.md#开发与验证)。本桌面版基于 [Raphael Publish](https://github.com/liuxiaopai-ai/raphael-publish)，保留 [MIT 许可证](LICENSE) 和 [NOTICE](NOTICE.md)。
