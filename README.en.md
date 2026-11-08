@@ -28,7 +28,7 @@ Copy styled content to WeChat or export HTML, PDF and plain text. With your own 
 
 [Download for Windows / macOS](https://github.com/DrivingGodJ/raphael-publish-desktop/releases/latest)
 
-Native WinUI is recommended on Windows, with Web UI as an alternative. Mac uses Web UI. See the [installation guide (Chinese)](docs/INSTALL.md) for edition selection and setup.
+Starting with v2.1.0, Windows ships only the native WinUI edition; Mac uses Web UI. The Windows build references only the required WinUI components, removing unused AI/ML dependencies without changing the article project format. See the [installation guide (Chinese)](docs/INSTALL.md) and [Windows lightweight architecture (Chinese)](docs/WINDOWS-ARCHITECTURE.md).
 
 ## Explore further
 

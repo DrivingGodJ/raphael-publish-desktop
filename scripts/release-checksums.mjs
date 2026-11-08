@@ -7,7 +7,6 @@ const version = process.argv[3] || JSON.parse(await readFile('package.json', 'ut
 if (!/^\d+\.\d+\.\d+$/.test(version)) throw new Error('Invalid release version')
 const names = [
   `Raphael-Publish-WinUI-${version}-windows-x64-Setup.exe`,
-  `Raphael-Publish-WebUI-${version}-windows-x64-Setup.exe`,
   `Raphael-Publish-WebUI-${version}-macos-arm64.dmg`,
   `Raphael-Publish-WebUI-${version}-macos-x64.dmg`,
 ]

@@ -4,15 +4,15 @@
 
 在 [Releases](https://github.com/DrivingGodJ/raphael-publish-desktop/releases/latest) 下载：
 
-- Windows x64：优先 WinUI Setup；Web UI Setup 是备选，不需要两版都装。
+- Windows x64：只提供 WinUI Setup，不再构建 Windows Electron/Web UI 安装包。
 - Mac M 系列：Web UI `macos-arm64.dmg`。
 - Mac Intel：Web UI `macos-x64.dmg`。
 
-WinUI 需要 Windows 10 2004（19041）或更新版本；当前仅提供 x64 包。Web UI 使用 Electron 44，Mac 需要 macOS 13 Ventura 或更新版本，Windows 需要 Windows 10 或更新版本。
+WinUI 需要 Windows 10 2004（19041）或更新版本；当前仅提供 x64 包。Web UI 仅保留 Mac 发行，使用 Electron 44，需要 macOS 13 Ventura 或更新版本。
 
 ## Windows 安装
 
-关闭已运行的同版应用，双击 Setup。安装位置默认在当前用户的 `%LOCALAPPDATA%/Programs`，向导可更改路径。快捷方式带应用 Logo。两版的应用名分别为 `Raphael Publish WinUI` 与 `Raphael Publish Web UI`，不会相互覆盖。
+关闭已运行的应用，双击 WinUI Setup。安装位置默认在当前用户的 `%LOCALAPPDATA%/Programs`，向导可更改路径。快捷方式带应用 Logo。旧 Windows Web UI 不再发行；确认 WinUI 能正常读取原项目后，可卸载旧版。不要删除独立的文章目录。
 
 WinUI 安装包已包含 .NET 和 Windows App SDK。安装器检查 WebView2 Runtime；缺失时运行随包携带、已验证微软签名的 Evergreen 引导程序，下载运行组件。此时需要网络；若网络受限，请先从[微软官方页面](https://developer.microsoft.com/en-us/microsoft-edge/webview2)安装 WebView2 Runtime 再重试。不要单独拷走程序目录中的 EXE。
 

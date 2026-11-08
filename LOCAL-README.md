@@ -2,11 +2,11 @@
 
 # Raphael Publish · Web UI
 
-基于 Electron 的 Windows/macOS 桌面界面。Windows 首选原生 WinUI，Mac 使用本版本；完整版本选择见[项目首页](README.md)。关闭主窗口即退出，不需要常驻本地网页服务。
+基于 Electron 的 macOS 桌面界面。从 v2.1.0 起，Windows 仅发行原生 WinUI，不再提供新的 Windows Web UI 安装包；完整版本选择见[项目首页](README.md)。关闭主窗口即退出，不需要常驻本地网页服务。
 
 ## 快速开始
 
-Windows 运行 Web UI Setup，从桌面或开始菜单启动；Mac 将匹配芯片的 DMG 中应用拖入 Applications。安装、升级和卸载详见[安装指南](docs/INSTALL.md)。
+Mac 将匹配芯片的 DMG 中应用拖入 Applications。旧 Windows Web UI 用户可改用 WinUI，文章项目格式保持不变；确认可正常使用后再卸载旧版。安装、升级和卸载详见[安装指南](docs/INSTALL.md)。
 
 ## 使用说明
 

@@ -1,5 +1,5 @@
 #ifndef AppVersion
-  #define AppVersion "2.0.1"
+  #define AppVersion "2.1.0"
 #endif
 #ifndef SourceDir
   #error SourceDir is required
@@ -52,6 +52,35 @@ Source: "{#Bootstrapper}"; Flags: dontcopy
 [Icons]
 Name: "{autoprograms}\Raphael Publish WinUI"; Filename: "{app}\Raphael Publish WinUI.exe"; WorkingDir: "{app}"; IconFilename: "{app}\icon.ico"
 Name: "{autodesktop}\Raphael Publish WinUI"; Filename: "{app}\Raphael Publish WinUI.exe"; WorkingDir: "{app}"; IconFilename: "{app}\icon.ico"; Tasks: desktopicon
+
+; Only obsolete SDK-owned files inside the application folder, never user data.
+[InstallDelete]
+Type: files; Name: "{app}\DirectML.dll"
+Type: files; Name: "{app}\DWriteCore.dll"
+Type: files; Name: "{app}\onnxruntime.dll"
+Type: files; Name: "{app}\Microsoft.ML.OnnxRuntime.dll"
+Type: files; Name: "{app}\Microsoft.Asg.SemanticIndex.AiFabric.Compatibility.dll"
+Type: files; Name: "{app}\Microsoft.Graphics.Imaging*"
+Type: files; Name: "{app}\Microsoft.Graphics.Internal.Imaging.winmd"
+Type: files; Name: "{app}\Microsoft.Windows.AI.*"
+Type: files; Name: "{app}\Microsoft.Windows.Search.*"
+Type: files; Name: "{app}\Microsoft.Windows.Widgets.*"
+Type: files; Name: "{app}\Microsoft.Windows.Workloads.*"
+Type: files; Name: "{app}\Microsoft.Windows.ImageCreationInternal.winmd"
+Type: files; Name: "{app}\Microsoft.Windows.Internal.AI.*"
+Type: files; Name: "{app}\Microsoft.Windows.Internal.ImageCreation.winmd"
+Type: files; Name: "{app}\Microsoft.Windows.Internal.SemanticSearch.winmd"
+Type: files; Name: "{app}\Microsoft.Windows.Internal.Vision.winmd"
+Type: files; Name: "{app}\Microsoft.Windows.Private.Workloads.*"
+Type: files; Name: "{app}\Microsoft.Windows.PrivateCommon.winmd"
+Type: files; Name: "{app}\Microsoft.Windows.SemanticSearch*"
+Type: files; Name: "{app}\Microsoft.Windows.Vision*"
+Type: files; Name: "{app}\NPUDetect.dll"
+Type: files; Name: "{app}\PerceptiveStreaming.dll"
+Type: files; Name: "{app}\SessionHandleIPCProxyStub.dll"
+Type: files; Name: "{app}\System.Numerics.Tensors.dll"
+Type: files; Name: "{app}\workloads.*.json"
+Type: files; Name: "{app}\workloads.json"
 
 [Run]
 Filename: "{app}\Raphael Publish WinUI.exe"; Description: "{cm:LaunchProgram,Raphael Publish WinUI}"; Flags: nowait postinstall skipifsilent unchecked

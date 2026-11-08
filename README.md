@@ -28,7 +28,7 @@
 
 [下载 Windows / macOS 安装包](https://github.com/DrivingGodJ/raphael-publish-desktop/releases/latest)
 
-Windows 推荐原生 WinUI 版，也可选择 Web UI；Mac 使用 Web UI。安装与版本选择见[安装指南](docs/INSTALL.md)。
+从 v2.1.0 起，Windows 仅提供原生 WinUI 版；Mac 使用 Web UI。Windows 版按需引用 WinUI 组件，移除无关的 AI/ML 等依赖，未改变文章项目格式。安装与版本选择见[安装指南](docs/INSTALL.md)，架构说明见[Windows 原生轻量架构](docs/WINDOWS-ARCHITECTURE.md)。
 
 ## 进一步了解
 

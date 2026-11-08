@@ -10,8 +10,7 @@ Choose the platform and interface from the same Release:
 
 | Platform | Edition | Package |
 | --- | --- | --- |
-| Windows 10 2004+/11, x64 | WinUI, recommended | `Raphael-Publish-WinUI-版本-windows-x64-Setup.exe` |
-| Windows 10/11, x64 | Web UI, alternative | `Raphael-Publish-WebUI-版本-windows-x64-Setup.exe` |
+| Windows 10 2004+/11, x64 | WinUI, the only Windows distribution | `Raphael-Publish-WinUI-版本-windows-x64-Setup.exe` |
 | Apple Silicon Mac | Web UI | `Raphael-Publish-WebUI-版本-macos-arm64.dmg` |
 | Intel Mac | Web UI | `Raphael-Publish-WebUI-版本-macos-x64.dmg` |
 
@@ -39,7 +38,6 @@ pnpm desktop:dev
 ```
 
 ```bash
-pnpm webui:installer:win
 pnpm winui:installer
 pnpm webui:installer:mac --arm64
 pnpm webui:installer:mac --x64

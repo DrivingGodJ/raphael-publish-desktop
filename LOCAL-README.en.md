@@ -2,11 +2,11 @@
 
 # Raphael Publish · Web UI
 
-The Electron desktop interface for Windows/macOS. WinUI is preferred on Windows; Mac uses this edition. See the [main README](README.en.md) for edition selection. Closing the main window exits the app without a persistent local web server.
+The Electron desktop interface for macOS. Starting with v2.1.0, Windows ships only native WinUI and no new Windows Web UI installer is provided. See the [main README](README.en.md) for edition selection. Closing the main window exits the app without a persistent local web server.
 
 ## Quick start
 
-On Windows, run Web UI Setup and launch from the desktop or Start menu. On Mac, drag the app from the matching architecture's DMG to Applications. See the [installation guide (Chinese)](docs/INSTALL.md) for installation, upgrades and removal.
+On Mac, drag the app from the matching architecture's DMG to Applications. Existing Windows Web UI users can switch to WinUI using the unchanged article project format, then uninstall the old app after checking their projects. See the [installation guide (Chinese)](docs/INSTALL.md) for installation, upgrades and removal.
 
 ## Usage
 

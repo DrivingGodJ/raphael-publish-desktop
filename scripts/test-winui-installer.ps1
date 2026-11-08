@@ -1,40 +1,42 @@
 $ErrorActionPreference = 'Stop'
-$repo = Split-Path -Parent $PSScriptRoot
-$version = (Get-Content -LiteralPath (Join-Path $repo 'package.json') -Raw | ConvertFrom-Json).version
-$installer = Join-Path $repo "release\Raphael-Publish-WinUI-$version-windows-x64-Setup.exe"
 $key = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\{75F379E8-BE84-483E-9220-E7E28D836AA1}_is1'
 if (Test-Path -LiteralPath $key) { throw 'WinUI is already installed. Use a clean test account/runner for installer validation.' }
-$testRoot = Join-Path ([IO.Path]::GetTempPath()) ('raphael-installer-check-' + [guid]::NewGuid().ToString('N'))
-New-Item -ItemType Directory -Path $testRoot | Out-Null
-$installation = Join-Path $testRoot 'app'
-$projects = Join-Path $testRoot 'projects'
-$resultDirectory = Join-Path $repo 'release\installed-winui-check'
+$version = (Get-Content package.json -Raw | ConvertFrom-Json).version
+$setup = (Resolve-Path "release\Raphael-Publish-WinUI-$version-windows-x64-Setup.exe").Path
+$fixture = Join-Path ([IO.Path]::GetTempPath()) ('raphael-installer-check-' + [guid]::NewGuid().ToString('N'))
+$app = Join-Path $fixture 'app'
+$articles = Join-Path $fixture 'articles'
+$results = Join-Path $fixture 'results'
+New-Item -ItemType Directory -Path $app, $articles, $results | Out-Null
+[IO.File]::WriteAllText((Join-Path $app 'DirectML.dll'), 'obsolete upgrade fixture')
+[IO.File]::WriteAllText((Join-Path $articles '正文.md'), '# Protected article fixture')
+$protectedHash = (Get-FileHash -LiteralPath (Join-Path $articles '正文.md')).Hash
+$install = Start-Process -FilePath $setup -ArgumentList @('/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/TASKS=', ('/DIR="' + $app + '"')) -PassThru -WindowStyle Hidden
+if (!$install.WaitForExit(180000)) { $install.Kill(); throw 'Installer timed out.' }
+if ($install.ExitCode -ne 0) { throw "Installer failed: $($install.ExitCode)" }
+if (Test-Path -LiteralPath (Join-Path $app 'DirectML.dll')) { throw 'Obsolete SDK file survived upgrade.' }
+node scripts/test-native-distribution.mjs $app
+if ($LASTEXITCODE -ne 0) { throw 'Installed payload check failed.' }
 $oldRoot = $env:RAPHAEL_PROJECTS_ROOT
-function Run-Setup {
-    $process = Start-Process -FilePath $installer -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/SP-','/NOICONS','/TASKS=""',('/DIR="' + $installation + '"') -WindowStyle Hidden -Wait -PassThru
-    if ($process.ExitCode -ne 0) { throw "Installer failed: $($process.ExitCode)" }
-}
+$env:RAPHAEL_PROJECTS_ROOT = Join-Path $fixture 'test-projects'
 try {
-    Run-Setup
-    $env:RAPHAEL_PROJECTS_ROOT = $projects
-    $process = Start-Process -FilePath (Join-Path $installation 'Raphael Publish WinUI.exe') -ArgumentList '--self-test','--self-test-output',('"' + $resultDirectory + '"') -WindowStyle Hidden -Wait -PassThru
-    $result = Get-Content -LiteralPath (Join-Path $resultDirectory 'result.json') -Raw | ConvertFrom-Json
-    if ($process.ExitCode -ne 0 -or -not $result.success) { throw 'Installed app self-test failed.' }
-    $article = Get-ChildItem -LiteralPath $projects -Filter '正文.md' -Recurse -File | Select-Object -First 1
-    if (-not $article) { throw 'Test article missing.' }
-    $before = (Get-FileHash -LiteralPath $article.FullName).Hash
-    Run-Setup
-    if ((Get-FileHash -LiteralPath $article.FullName).Hash -ne $before) { throw 'Upgrade modified the article.' }
-    $uninstall = Start-Process -FilePath (Join-Path $installation 'unins000.exe') -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART' -WindowStyle Hidden -Wait -PassThru
-    if ($uninstall.ExitCode -ne 0) { throw 'Uninstall failed.' }
-    if (-not (Test-Path -LiteralPath $article.FullName) -or (Get-FileHash -LiteralPath $article.FullName).Hash -ne $before) { throw 'Uninstall removed or modified the article.' }
-    if (Test-Path -LiteralPath (Join-Path $installation 'Raphael Publish WinUI.exe')) { throw 'Uninstall left the app executable behind.' }
-    if (Test-Path -LiteralPath $key) { throw 'Uninstall registry entry was not cleaned.' }
-    Write-Output 'PASS: per-user install, installed native app, upgrade retains article, uninstall retains article.'
-    # Only the explicitly created test fixture under the temp directory is deleted.
-    $resolved = [IO.Path]::GetFullPath($testRoot)
-    $temp = [IO.Path]::GetFullPath([IO.Path]::GetTempPath()).TrimEnd('\') + '\'
-    if (-not $resolved.StartsWith($temp, [StringComparison]::OrdinalIgnoreCase) -or [IO.Path]::GetFileName($resolved) -notmatch '^raphael-installer-check-[a-f0-9]{32}$') { throw 'Unsafe test cleanup path.' }
-    Remove-Item -LiteralPath $resolved -Recurse -Force
-}
-finally { $env:RAPHAEL_PROJECTS_ROOT = $oldRoot }
+    $test = Start-Process -FilePath (Join-Path $app 'Raphael Publish WinUI.exe') -ArgumentList @('--self-test', '--no-screenshots', '--self-test-output', ('"' + $results + '"')) -PassThru -WindowStyle Hidden
+    if (!$test.WaitForExit(120000)) { $test.Kill(); throw 'Native self-test timed out.' }
+    $report = Get-Content -LiteralPath (Join-Path $results 'result.json') -Raw | ConvertFrom-Json
+    if (!$report.success) { throw ($report | ConvertTo-Json -Depth 8) }
+} finally { $env:RAPHAEL_PROJECTS_ROOT = $oldRoot }
+$article = Get-ChildItem -LiteralPath (Join-Path $fixture 'test-projects') -Filter '正文.md' -Recurse -File | Select-Object -First 1
+if (!$article) { throw 'Self-test article missing.' }
+$articleHash = (Get-FileHash -LiteralPath $article.FullName).Hash
+[IO.File]::WriteAllText((Join-Path $app 'DirectML.dll'), 'obsolete SDK upgrade fixture')
+$upgrade = Start-Process -FilePath $setup -ArgumentList @('/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/NOICONS', '/TASKS=""', ('/DIR="' + $app + '"')) -PassThru -WindowStyle Hidden
+if (!$upgrade.WaitForExit(180000)) { $upgrade.Kill(); throw 'Upgrade timed out.' }
+if ($upgrade.ExitCode -ne 0 -or (Test-Path -LiteralPath (Join-Path $app 'DirectML.dll'))) { throw 'Upgrade or obsolete SDK cleanup failed.' }
+if ((Get-FileHash -LiteralPath $article.FullName).Hash -ne $articleHash) { throw 'Upgrade modified the article.' }
+$uninstall = Start-Process -FilePath (Join-Path $app 'unins000.exe') -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART' -PassThru -WindowStyle Hidden
+if (!$uninstall.WaitForExit(60000) -or $uninstall.ExitCode -ne 0) { throw 'Uninstall failed.' }
+if ((Get-FileHash -LiteralPath (Join-Path $articles '正文.md')).Hash -ne $protectedHash) { throw 'Protected article changed.' }
+if (!(Test-Path -LiteralPath $article.FullName) -or (Get-FileHash -LiteralPath $article.FullName).Hash -ne $articleHash) { throw 'Uninstall modified the real project fixture.' }
+if (Test-Path -LiteralPath (Join-Path $app 'Raphael Publish WinUI.exe')) { throw 'Uninstall left the executable behind.' }
+if (Test-Path -LiteralPath $key) { throw 'Uninstall registry entry was not cleaned.' }
+Write-Output 'PASS: native installer, obsolete SDK cleanup, functional self-test, uninstall, protected article preservation.'

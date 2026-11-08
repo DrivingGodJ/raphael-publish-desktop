@@ -10,8 +10,7 @@
 
 | 平台 | 版本 | 安装包 |
 | --- | --- | --- |
-| Windows 10 2004+/11，x64 | WinUI，推荐 | `Raphael-Publish-WinUI-版本-windows-x64-Setup.exe` |
-| Windows 10/11，x64 | Web UI，备选 | `Raphael-Publish-WebUI-版本-windows-x64-Setup.exe` |
+| Windows 10 2004+/11，x64 | WinUI，唯一 Windows 发行版 | `Raphael-Publish-WinUI-版本-windows-x64-Setup.exe` |
 | Apple Silicon Mac | Web UI | `Raphael-Publish-WebUI-版本-macos-arm64.dmg` |
 | Intel Mac | Web UI | `Raphael-Publish-WebUI-版本-macos-x64.dmg` |
 
@@ -39,7 +38,6 @@ pnpm desktop:dev
 ```
 
 ```bash
-pnpm webui:installer:win
 pnpm winui:installer
 pnpm webui:installer:mac --arm64
 pnpm webui:installer:mac --x64

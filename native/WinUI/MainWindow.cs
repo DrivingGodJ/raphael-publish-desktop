@@ -54,6 +54,7 @@ public sealed class MainWindow : Window
     ScrollViewer? _editorScroll;
     bool _loading, _busy, _closing, _dark, _initialized;
     long _requestId, _revision;
+    (string Markdown, string Theme, string? Project)? _rendered;
     double _lastSyncedRatio = -1;
     double _lastPreviewScroll = -1;
     string _themeId = "apple", _device = "pc";
@@ -318,8 +319,11 @@ public sealed class MainWindow : Window
     }
     async Task RenderAsync()
     {
+        var document = (Markdown: CurrentMarkdown, Theme: CurrentTheme, Project: _current?.Id);
+        if (_rendered == document) return;
         var revision = _revision;
-        var result = await RequestAsync("render", new { markdown = CurrentMarkdown, themeId = CurrentTheme, projectId = _current?.Id });
+        var result = await RequestAsync("render", new { markdown = document.Markdown, themeId = document.Theme, projectId = document.Project });
+        _rendered = document;
         if (revision == _revision) _words.Text = (result?["words"]?.GetValue<int>() ?? 0) + " 字";
     }
     async Task OpenProjectAsync(string id)
@@ -542,18 +546,27 @@ public sealed class MainWindow : Window
         var clipboardImage = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jI3kAAAAASUVORK5CYII=";
         _editor.Text += "\n\n![测试图片](" + clipboardImage + ")\n\n" + pasted;
         await UpdateImagesAsync(); await SaveCurrentAsync(); await RenderAsync();
+        _renderTimer.Stop();
+        var requests = _requestId;
+        await RenderAsync(); await RenderAsync();
+        if (_requestId != requests) throw new InvalidOperationException("未修改的文章发生了重复渲染。");
         var html = (await RequestAsync("copy"))!["html"]!.GetValue<string>();
         if (!html.Contains("data:image/png;base64,")) throw new InvalidOperationException("富文本复制未包含本地图片。");
         if (!HtmlClipboard.ExtractFragment(HtmlFormatHelper.CreateHtmlFormat(html)).Contains("data:image/png;base64,")) throw new InvalidOperationException("Windows 富文本剪贴板封装失败。");
         var inspected = await RequestAsync("inspect");
         if (!inspected!["text"]!.GetValue<string>().Contains("WinUI 3 文章")) throw new InvalidOperationException("预览正文不完整。");
         Directory.CreateDirectory(SelfTestDirectory);
-        using (var stream = File.Create(Path.Combine(SelfTestDirectory, "preview.png"))) await _preview.CoreWebView2.CapturePreviewAsync(CoreWebView2CapturePreviewImageFormat.Png, stream.AsRandomAccessStream());
-        var bitmap = new RenderTargetBitmap(); await bitmap.RenderAsync(_root); var pixelBuffer = await bitmap.GetPixelsAsync(); var pixels = new byte[(int)pixelBuffer.Length]; DataReader.FromBuffer(pixelBuffer).ReadBytes(pixels);
-        using (var stream = File.Create(Path.Combine(SelfTestDirectory, "native-layout.png")))
+        if (!_args.Contains("--no-screenshots"))
         {
-            var encoder = await BitmapEncoder.CreateAsync(BitmapEncoder.PngEncoderId, stream.AsRandomAccessStream());
-            encoder.SetPixelData(BitmapPixelFormat.Bgra8, BitmapAlphaMode.Premultiplied, (uint)bitmap.PixelWidth, (uint)bitmap.PixelHeight, 96, 96, pixels); await encoder.FlushAsync();
+            // Hidden WebView capture needs a fresh compositor frame.
+            _rendered = null; await RenderAsync();
+            using (var stream = File.Create(Path.Combine(SelfTestDirectory, "preview.png"))) await _preview.CoreWebView2.CapturePreviewAsync(CoreWebView2CapturePreviewImageFormat.Png, stream.AsRandomAccessStream()).AsTask().WaitAsync(TimeSpan.FromSeconds(30));
+            var bitmap = new RenderTargetBitmap(); await bitmap.RenderAsync(_root); var pixelBuffer = await bitmap.GetPixelsAsync(); var pixels = new byte[(int)pixelBuffer.Length]; DataReader.FromBuffer(pixelBuffer).ReadBytes(pixels);
+            using (var stream = File.Create(Path.Combine(SelfTestDirectory, "native-layout.png")))
+            {
+                var encoder = await BitmapEncoder.CreateAsync(BitmapEncoder.PngEncoderId, stream.AsRandomAccessStream());
+                encoder.SetPixelData(BitmapPixelFormat.Bgra8, BitmapAlphaMode.Premultiplied, (uint)bitmap.PixelWidth, (uint)bitmap.PixelHeight, 96, 96, pixels); await encoder.FlushAsync();
+            }
         }
         _devices.SelectedIndex = 2; await ApplyViewAsync(); var mobile = await RequestAsync("inspect");
         if (mobile?["device"]?.GetValue<string>() != "mobile") throw new InvalidOperationException("手机预览切换失败。");
@@ -568,11 +581,11 @@ public sealed class MainWindow : Window
         await RequestAsync("print", new { enabled = false });
         if (!(await File.ReadAllBytesAsync(pdf)).AsSpan().StartsWith(Encoding.ASCII.GetBytes("%PDF-"))) throw new InvalidOperationException("PDF 文件无效。");
         _editor.Text = "# 长文章验证\n\n" + string.Concat(Enumerable.Repeat("这是原生编辑器的长文章段落，包含**加粗文字**，用来验证实时渲染和双向滚动同步。\n\n", 200));
-        await RenderAsync(); await Task.Delay(250);
+        await RenderAsync(); await Task.Delay(1500);
         _editorScroll ??= FindDescendant<ScrollViewer>(_editor);
         if (_editorScroll is null || _editorScroll.ScrollableHeight <= 0) throw new InvalidOperationException("原生编辑器未创建滚动区域。");
         _lastSyncedRatio = -1;
-        _editorScroll.ChangeView(null, _editorScroll.ScrollableHeight * .5, null, true); await Task.Delay(250);
+        _editorScroll.ChangeView(null, _editorScroll.ScrollableHeight * .5, null, true); await Task.Delay(1000);
         var scroll = (await RequestAsync("inspect"))!["scrollRatio"]!.GetValue<double>();
         if (Math.Abs(scroll - .5) > .15) throw new InvalidOperationException("编辑器到预览的滚动同步失败：" + scroll);
         // Hidden WebView2 does not reliably emit compositor-driven scroll events.
