@@ -10,7 +10,8 @@ permissions:
 
 jobs:
   test-and-build:
-    runs-on: ubuntu-latest
+    # Playwright 1.58 does not provide browser dependencies for Ubuntu 26.04.
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -64,8 +65,9 @@ jobs:
       - name: Test native project and publisher logic
         run: dotnet run --project native/Tests/Raphael.Core.Tests.csproj -c Release
       - name: Build WinUI 3 app
-        run: pwsh -NoProfile -File scripts/build-winui.ps1
+        run: pwsh -NoProfile -File scripts/build-winui.ps1 -OutputDirectory release/winui
       - uses: actions/upload-artifact@v4
         with:
           name: Raphael-Publish-WinUI-windows-x64
-          path: release/winui-v2.0.0/
+          path: release/winui/
+          if-no-files-found: error
