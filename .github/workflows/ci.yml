@@ -37,6 +37,7 @@ jobs:
         run: |
           pnpm test:desktop-backend
           pnpm test:wechat-publisher
+          pnpm test:app-updater
 
       - name: Install Playwright browser
         run: pnpm exec playwright install --with-deps chromium

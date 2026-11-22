@@ -15,4 +15,13 @@ contextBridge.exposeInMainWorld('raphaelDesktop', {
   getPublisherSettings: () => ipcRenderer.invoke('publisher:get-settings'),
   selectPublisherCover: () => ipcRenderer.invoke('publisher:select-cover'),
   publishWechatDraft: payload => ipcRenderer.invoke('publisher:publish-draft', payload),
+  checkForUpdates: () => ipcRenderer.invoke('updater:check'),
+  downloadAndInstallUpdate: () => ipcRenderer.invoke('updater:download-and-install'),
+  cancelUpdateDownload: () => ipcRenderer.invoke('updater:cancel-download'),
+  openReleasePage: url => ipcRenderer.invoke('updater:open-release-page', url),
+  onUpdateProgress: (listener) => {
+    const handler = (_event, progress) => listener(progress)
+    ipcRenderer.on('updater:progress', handler)
+    return () => ipcRenderer.removeListener('updater:progress', handler)
+  },
 })

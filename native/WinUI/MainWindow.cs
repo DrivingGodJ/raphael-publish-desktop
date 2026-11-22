@@ -1,3 +1,4 @@
+using System.Reflection;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
@@ -33,6 +34,7 @@ public sealed class MainWindow : Window
     readonly TextBlock _saveState = new() { Text = "新建项目后，文章会自动保存", FontSize = 12, Opacity = .65 };
     readonly TextBlock _words = new() { Text = "0 字", FontSize = 12, Opacity = .65 };
     readonly InfoBar _notice = new() { IsOpen = false, IsClosable = true, Margin = new Thickness(20, 0, 20, 12) };
+    readonly InfoBar _updateBar = new() { IsOpen = false, IsClosable = true, Severity = InfoBarSeverity.Informational, Margin = new Thickness(20, 0, 20, 12) };
     readonly ComboBox _themes = new() { Width = 204, PlaceholderText = "选择排版主题" };
     readonly ComboBox _devices = new() { Width = 118 };
     readonly ToggleSwitch _sync = new() { Header = null, OnContent = "滚动同步", OffContent = "滚动同步", IsOn = true };
@@ -41,9 +43,13 @@ public sealed class MainWindow : Window
     readonly Button _updateButton = new() { Content = "更新图片", IsEnabled = false };
     readonly Button _draftButton = new() { Content = "发布草稿", IsEnabled = false };
     readonly Button _copyButton = new() { Content = "复制到公众号" };
+    readonly Button _checkUpdateButton = new() { Content = "检查更新" };
     readonly DispatcherQueueTimer _saveTimer, _renderTimer;
     readonly ProjectStore _store;
     readonly CredentialStore _credentials;
+    readonly AppUpdater _updater = new();
+    readonly string _updatesDirectory;
+    readonly string _appVersion;
     readonly Dictionary<long, TaskCompletionSource<JsonNode?>> _pending = [];
     readonly TaskCompletionSource _webReady = new();
     readonly UISettings _uiSettings = new();
@@ -51,8 +57,9 @@ public sealed class MainWindow : Window
     readonly List<Border> _cards = [];
     readonly List<ThemeOption> _themeOptions = [];
     Project? _current;
+    UpdateCheckResult? _availableUpdate;
     ScrollViewer? _editorScroll;
-    bool _loading, _busy, _closing, _dark, _initialized;
+    bool _loading, _busy, _closing, _dark, _initialized, _checkingUpdate, _installingUpdate;
     long _requestId, _revision;
     (string Markdown, string Theme, string? Project)? _rendered;
     double _lastSyncedRatio = -1;
@@ -68,7 +75,14 @@ public sealed class MainWindow : Window
         var root = Environment.GetEnvironmentVariable("RAPHAEL_PROJECTS_ROOT");
         if (SelfTest && string.IsNullOrWhiteSpace(root)) root = Path.Combine(Path.GetTempPath(), "raphael-winui-selftest-" + Guid.NewGuid().ToString("N"));
         _store = new ProjectStore(root ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "Raphael公众号项目"), SelfTest ? ((path, directory) => { if (directory) Directory.Delete(path, true); else File.Delete(path); }) : NativeServices.Recycle);
-        _credentials = new CredentialStore(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "RaphaelPublishWinUI"));
+        var appDataRoot = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "RaphaelPublishWinUI");
+        _credentials = new CredentialStore(appDataRoot);
+        _updatesDirectory = Path.Combine(appDataRoot, "Updates");
+        _appVersion = AppUpdater.NormalizeVersion(
+            typeof(MainWindow).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion
+            ?? typeof(MainWindow).Assembly.GetName().Version?.ToString()
+            ?? "0.0.0");
+        ToolTipService.SetToolTip(_checkUpdateButton, $"检查 GitHub Releases 更新（当前版本 v{_appVersion}）");
         Title = "Raphael Publish · WinUI 3";
         SystemBackdrop = new MicaBackdrop();
         var scale = GetDpiForWindow(WinRT.Interop.WindowNative.GetWindowHandle(this)) / 96.0;
@@ -139,6 +153,7 @@ public sealed class MainWindow : Window
         _projectsButton.Click += async (_, _) => await GuardAsync(ShowProjectsAsync);
         _updateButton.Click += async (_, _) => await GuardAsync(UpdateImagesAsync);
         _draftButton.Click += async (_, _) => await GuardAsync(ShowPublishAsync);
+        _checkUpdateButton.Click += async (_, _) => await CheckForUpdatesAsync(forceRecheck: false);
         var toolbar = new Grid { Padding = new Thickness(20, 0, 20, 16), ColumnSpacing = 18 };
         toolbar.ColumnDefinitions.Add(new() { Width = new GridLength(1, GridUnitType.Star) }); toolbar.ColumnDefinitions.Add(new() { Width = GridLength.Auto });
         toolbar.RowDefinitions.Add(new() { Height = GridLength.Auto }); toolbar.RowDefinitions.Add(new() { Height = GridLength.Auto });
@@ -146,7 +161,13 @@ public sealed class MainWindow : Window
         styleControls.Children.Add(new TextBlock { Text = "排版主题", VerticalAlignment = VerticalAlignment.Center, Opacity = .7 }); styleControls.Children.Add(_themes);
         styleControls.Children.Add(_devices); _devices.Items.Add("电脑预览"); _devices.Items.Add("平板预览"); _devices.Items.Add("手机预览"); _devices.SelectedIndex = 0;
         styleControls.Children.Add(_sync); toolbar.Children.Add(styleControls);
-        Grid.SetRow(toolbar, 2); _root.Children.Add(toolbar);
+        _checkUpdateButton.VerticalAlignment = VerticalAlignment.Center;
+        _checkUpdateButton.HorizontalAlignment = HorizontalAlignment.Right;
+        Grid.SetColumn(_checkUpdateButton, 1); toolbar.Children.Add(_checkUpdateButton);
+        var toolbarStack = new StackPanel();
+        toolbarStack.Children.Add(toolbar);
+        toolbarStack.Children.Add(_updateBar);
+        Grid.SetRow(toolbarStack, 2); _root.Children.Add(toolbarStack);
         var panes = new Grid { Margin = new Thickness(20, 0, 20, 12), ColumnSpacing = 12 };
         panes.ColumnDefinitions.Add(new() { Width = new GridLength(5, GridUnitType.Star) }); panes.ColumnDefinitions.Add(new() { Width = new GridLength(6, GridUnitType.Star) });
         var editorPane = Pane("文章编辑", _editor, _updateButton); panes.Children.Add(editorPane);
@@ -158,6 +179,10 @@ public sealed class MainWindow : Window
             Grid.SetColumn(actions, narrowHeader ? 0 : 1); Grid.SetRow(actions, narrowHeader ? 1 : 0);
             Grid.SetColumnSpan(brand, narrowHeader ? 2 : 1);
             actions.Margin = new Thickness(0, narrowHeader ? 12 : 0, 0, 0);
+            var narrowToolbar = _root.ActualWidth < 860;
+            Grid.SetColumn(_checkUpdateButton, narrowToolbar ? 0 : 1); Grid.SetRow(_checkUpdateButton, narrowToolbar ? 1 : 0);
+            _checkUpdateButton.HorizontalAlignment = narrowToolbar ? HorizontalAlignment.Left : HorizontalAlignment.Right;
+            _checkUpdateButton.Margin = new Thickness(0, narrowToolbar ? 10 : 0, 0, 0);
             var stacked = _root.ActualWidth < 950;
             Grid.SetColumn(previewPane, stacked ? 0 : 1); Grid.SetRow(previewPane, stacked ? 1 : 0);
             Grid.SetColumnSpan(editorPane, stacked ? 2 : 1); Grid.SetColumnSpan(previewPane, stacked ? 2 : 1);
@@ -182,7 +207,8 @@ public sealed class MainWindow : Window
         plain.Click += async (_, _) => await GuardAsync(async () => { NativeServices.Copy((await RequestAsync("plain"))?.GetValue<string>() ?? ""); ShowNotice("纯文本已复制"); });
         var html = new MenuFlyoutItem { Text = "导出 HTML", Icon = new SymbolIcon(Symbol.Document) }; html.Click += async (_, _) => await GuardAsync(ExportHtmlAsync);
         var pdf = new MenuFlyoutItem { Text = "导出 PDF", Icon = new SymbolIcon(Symbol.Print) }; pdf.Click += async (_, _) => await GuardAsync(ExportPdfAsync);
-        menu.Items.Add(plain); menu.Items.Add(new MenuFlyoutSeparator()); menu.Items.Add(html); menu.Items.Add(pdf);
+        var checkUpdate = new MenuFlyoutItem { Text = "检查更新", Icon = new SymbolIcon(Symbol.Refresh) }; checkUpdate.Click += async (_, _) => await CheckForUpdatesAsync(forceRecheck: true);
+        menu.Items.Add(plain); menu.Items.Add(new MenuFlyoutSeparator()); menu.Items.Add(html); menu.Items.Add(pdf); menu.Items.Add(new MenuFlyoutSeparator()); menu.Items.Add(checkUpdate);
         return menu;
     }
     void UpdateTitleBarInsets()
@@ -259,6 +285,7 @@ public sealed class MainWindow : Window
             if (SelfTest) { await RunSelfTestAsync(); return; }
             var projects = await _store.ListAsync();
             if (projects.Count > 0) await OpenProjectAsync(projects[0].Id); else await RenderAsync();
+            _ = CheckForUpdatesSilentlyAsync();
         }
         catch (Exception error)
         {
@@ -381,7 +408,8 @@ public sealed class MainWindow : Window
         _busy = busy; _editor.IsReadOnly = busy; _projectsButton.IsEnabled = !busy;
         _themes.IsEnabled = !busy;
         _updateButton.IsEnabled = !busy && _current is not null; _draftButton.IsEnabled = !busy && _current is not null;
-        _copyButton.IsEnabled = !busy; _progress.IsActive = busy; _progress.Visibility = busy ? Visibility.Visible : Visibility.Collapsed;
+        _copyButton.IsEnabled = !busy; _checkUpdateButton.IsEnabled = !busy && !_checkingUpdate && !_installingUpdate;
+        _progress.IsActive = busy; _progress.Visibility = busy ? Visibility.Visible : Visibility.Collapsed;
     }
     ContentDialog Dialog(string title, object content, string primary, string secondary = "", string close = "取消") => new()
     { XamlRoot = _root.XamlRoot, Title = title, Content = content, PrimaryButtonText = primary, SecondaryButtonText = secondary, CloseButtonText = close, DefaultButton = ContentDialogButton.Primary, RequestedTheme = _root.RequestedTheme };
@@ -521,6 +549,285 @@ public sealed class MainWindow : Window
         };
         await dialog.ShowAsync();
     }
+    async Task CheckForUpdatesSilentlyAsync()
+    {
+        try
+        {
+            await Task.Delay(1500);
+            if (_closing || SelfTest) return;
+            var result = await _updater.CheckForUpdatesAsync(_appVersion);
+            if (_closing || !result.HasUpdate) return;
+            ApplyAvailableUpdate(result, showBanner: true);
+        }
+        catch
+        {
+            // Startup silent check intentionally stays silent on network failures or when up to date.
+        }
+    }
+
+    void ApplyAvailableUpdate(UpdateCheckResult update, bool showBanner)
+    {
+        _availableUpdate = update;
+        _checkUpdateButton.Content = $"更新 v{update.LatestVersion}";
+        _checkUpdateButton.Style = Application.Current.Resources["AccentButtonStyle"] as Style;
+        ToolTipService.SetToolTip(_checkUpdateButton, $"发现新版本 v{update.LatestVersion}（当前 v{update.CurrentVersion}），点击更新");
+        if (!showBanner) return;
+
+        var action = new Button
+        {
+            Content = update.CanAutoInstall ? "立即更新" : "前往发布页",
+            Style = Application.Current.Resources["AccentButtonStyle"] as Style,
+        };
+        action.Click += async (_, _) =>
+        {
+            if (update.CanAutoInstall)
+            {
+                await ShowUpdateDialogAsync(update, startDownloadImmediately: true);
+            }
+            else
+            {
+                NativeServices.OpenPath(update.ReleaseUrl);
+            }
+        };
+        _updateBar.Title = $"发现新版本 v{update.LatestVersion}";
+        _updateBar.Message = update.CanAutoInstall
+            ? $"当前版本 v{update.CurrentVersion}，点击即可自动下载并安装更新。"
+            : $"当前版本 v{update.CurrentVersion}，请前往 GitHub 发布页下载新版本。";
+        _updateBar.ActionButton = action;
+        _updateBar.IsOpen = true;
+    }
+
+    async Task CheckForUpdatesAsync(bool forceRecheck)
+    {
+        if (_checkingUpdate || _installingUpdate) return;
+        if (!forceRecheck && _availableUpdate is not null)
+        {
+            await ShowUpdateDialogAsync(_availableUpdate, startDownloadImmediately: false);
+            return;
+        }
+
+        _checkingUpdate = true;
+        _checkUpdateButton.IsEnabled = false;
+        _checkUpdateButton.Content = "检查中…";
+        try
+        {
+            var result = await _updater.CheckForUpdatesAsync(_appVersion);
+            if (result.HasUpdate)
+            {
+                ApplyAvailableUpdate(result, showBanner: false);
+                _updateBar.IsOpen = false;
+                await ShowUpdateDialogAsync(result, startDownloadImmediately: false);
+            }
+            else
+            {
+                _availableUpdate = null;
+                _updateBar.IsOpen = false;
+                _checkUpdateButton.Style = null;
+                ToolTipService.SetToolTip(_checkUpdateButton, $"检查 GitHub Releases 更新（当前版本 v{_appVersion}）");
+                ShowNotice($"当前已是最新版本（v{result.CurrentVersion}）。");
+            }
+        }
+        catch (Exception error)
+        {
+            ShowNotice("检查更新失败：" + error.Message, true);
+        }
+        finally
+        {
+            _checkingUpdate = false;
+            _checkUpdateButton.IsEnabled = !_busy && !_installingUpdate;
+            _checkUpdateButton.Content = _availableUpdate is not null ? $"更新 v{_availableUpdate.LatestVersion}" : "检查更新";
+        }
+    }
+
+    static string FormatReleaseNotes(string raw)
+    {
+        var trimmed = (raw ?? "").Trim();
+        if (trimmed.Length == 0) return "该版本未附带详细更新说明，可前往 GitHub 发布页查看完整变更。";
+        return trimmed.Length > 2000 ? trimmed[..2000].TrimEnd() + "\n…" : trimmed;
+    }
+
+    async Task ShowUpdateDialogAsync(UpdateCheckResult update, bool startDownloadImmediately)
+    {
+        if (_installingUpdate) return;
+        if (_busy) { ShowNotice("请等待当前操作完成后再更新。"); return; }
+
+        var panel = new StackPanel { Width = 500, Spacing = 12 };
+        var summary = update.InstallerAsset is not null
+            ? $"当前版本 v{update.CurrentVersion}  →  最新版本 v{update.LatestVersion}（安装包约 {AppUpdater.FormatBytes(update.InstallerAsset.Size)}）"
+            : $"当前版本 v{update.CurrentVersion}  →  最新版本 v{update.LatestVersion}";
+        panel.Children.Add(new TextBlock { Text = summary, FontWeight = Microsoft.UI.Text.FontWeights.SemiBold, TextWrapping = TextWrapping.Wrap });
+        if (!string.IsNullOrWhiteSpace(update.ReleaseName) && !update.ReleaseName.Contains(update.LatestVersion, StringComparison.OrdinalIgnoreCase))
+            panel.Children.Add(new TextBlock { Text = update.ReleaseName, Opacity = .75, TextWrapping = TextWrapping.Wrap });
+
+        var notesBorder = new Border
+        {
+            CornerRadius = new CornerRadius(6),
+            BorderThickness = new Thickness(1),
+            BorderBrush = new SolidColorBrush(_dark ? Windows.UI.Color.FromArgb(255, 62, 62, 62) : Windows.UI.Color.FromArgb(255, 226, 226, 226)),
+            Background = new SolidColorBrush(_dark ? Windows.UI.Color.FromArgb(255, 34, 34, 34) : Windows.UI.Color.FromArgb(255, 248, 248, 248)),
+            Padding = new Thickness(12),
+            MaxHeight = 220,
+            Child = new ScrollViewer
+            {
+                VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+                Content = new TextBlock { Text = FormatReleaseNotes(update.ReleaseNotes), TextWrapping = TextWrapping.Wrap, IsTextSelectionEnabled = true, FontSize = 13, Opacity = .88 }
+            }
+        };
+        panel.Children.Add(notesBorder);
+
+        var statusText = new TextBlock { Text = "", TextWrapping = TextWrapping.Wrap, FontSize = 13, Opacity = .85 };
+        var progressBar = new ProgressBar { Minimum = 0, Maximum = 100, Value = 0 };
+        var progressPanel = new StackPanel { Spacing = 8, Visibility = Visibility.Collapsed };
+        progressPanel.Children.Add(statusText);
+        progressPanel.Children.Add(progressBar);
+        panel.Children.Add(progressPanel);
+
+        var errorText = new TextBlock
+        {
+            Text = "",
+            TextWrapping = TextWrapping.Wrap,
+            FontSize = 13,
+            Foreground = new SolidColorBrush(_dark ? Windows.UI.Color.FromArgb(255, 255, 153, 164) : Windows.UI.Color.FromArgb(255, 196, 43, 28)),
+            Visibility = Visibility.Collapsed,
+        };
+        panel.Children.Add(errorText);
+
+        var dialog = Dialog(
+            $"发现新版本 v{update.LatestVersion}",
+            panel,
+            update.CanAutoInstall ? "下载并更新" : "前往发布页",
+            update.CanAutoInstall ? "查看发布页" : "",
+            "暂不更新");
+
+        CancellationTokenSource? downloadCts = null;
+        var downloading = false;
+        var dialogClosed = false;
+
+        async Task RunDownloadAndInstallAsync()
+        {
+            if (downloading || _installingUpdate || dialogClosed) return;
+            downloading = true;
+            downloadCts = new CancellationTokenSource();
+            dialog.IsPrimaryButtonEnabled = false;
+            dialog.IsSecondaryButtonEnabled = false;
+            dialog.CloseButtonText = "取消下载";
+            errorText.Visibility = Visibility.Collapsed;
+            progressPanel.Visibility = Visibility.Visible;
+            progressBar.IsIndeterminate = true;
+            progressBar.Value = 0;
+            statusText.Text = "正在连接 GitHub 下载安装包…";
+
+            try
+            {
+                var progress = new Progress<UpdateDownloadProgress>(report =>
+                {
+                    if (dialogClosed) return;
+                    if (report.Stage == "verifying")
+                    {
+                        progressBar.IsIndeterminate = true;
+                        statusText.Text = "下载完成，正在校验安装包完整性 (SHA-256)…";
+                    }
+                    else if (report.Stage == "ready")
+                    {
+                        progressBar.IsIndeterminate = false;
+                        progressBar.Value = 100;
+                        statusText.Text = "校验通过，正在保存当前文章并启动更新程序…";
+                    }
+                    else
+                    {
+                        if (report.Percentage is { } pct)
+                        {
+                            progressBar.IsIndeterminate = false;
+                            progressBar.Value = pct;
+                            statusText.Text = $"正在下载安装包… {AppUpdater.FormatBytes(report.DownloadedBytes)} / {AppUpdater.FormatBytes(report.TotalBytes ?? report.DownloadedBytes)}（{pct:F0}%）";
+                        }
+                        else
+                        {
+                            progressBar.IsIndeterminate = true;
+                            statusText.Text = $"正在下载安装包… {AppUpdater.FormatBytes(report.DownloadedBytes)}";
+                        }
+                    }
+                });
+
+                var installerPath = await _updater.DownloadInstallerAsync(update, _updatesDirectory, progress, downloadCts.Token);
+                if (dialogClosed) return;
+                _installingUpdate = true;
+                await SaveCurrentAsync();
+                Program.ReleaseSingleInstanceMutex();
+                AppUpdater.LaunchWindowsInstaller(installerPath, Environment.ProcessId, Environment.ProcessPath);
+                _closing = true;
+                dialog.Hide();
+                Close();
+            }
+            catch (OperationCanceledException)
+            {
+                if (dialogClosed) return;
+                progressPanel.Visibility = Visibility.Collapsed;
+                dialog.PrimaryButtonText = "下载并更新";
+                dialog.CloseButtonText = "暂不更新";
+                dialog.IsPrimaryButtonEnabled = true;
+                dialog.IsSecondaryButtonEnabled = true;
+            }
+            catch (Exception error)
+            {
+                _installingUpdate = false;
+                if (dialogClosed) return;
+                progressPanel.Visibility = Visibility.Collapsed;
+                errorText.Text = error.Message;
+                errorText.Visibility = Visibility.Visible;
+                dialog.PrimaryButtonText = "重试下载";
+                dialog.CloseButtonText = "关闭";
+                dialog.IsPrimaryButtonEnabled = true;
+                dialog.IsSecondaryButtonEnabled = true;
+            }
+            finally
+            {
+                downloading = false;
+                downloadCts?.Dispose();
+                downloadCts = null;
+            }
+        }
+
+        dialog.PrimaryButtonClick += (sender, eventArgs) =>
+        {
+            if (!update.CanAutoInstall)
+            {
+                NativeServices.OpenPath(update.ReleaseUrl);
+                return;
+            }
+            eventArgs.Cancel = true;
+            _ = RunDownloadAndInstallAsync();
+        };
+
+        dialog.SecondaryButtonClick += (_, eventArgs) =>
+        {
+            eventArgs.Cancel = true;
+            NativeServices.OpenPath(update.ReleaseUrl);
+        };
+        dialog.CloseButtonClick += (_, _) =>
+        {
+            if (downloading) downloadCts?.Cancel();
+        };
+        dialog.Closing += (_, _) =>
+        {
+            dialogClosed = true;
+            if (downloading) downloadCts?.Cancel();
+        };
+
+        if (startDownloadImmediately && update.CanAutoInstall)
+        {
+            var autoStarted = false;
+            dialog.Loaded += async (_, _) =>
+            {
+                if (autoStarted) return;
+                autoStarted = true;
+                await RunDownloadAndInstallAsync();
+            };
+        }
+
+        await dialog.ShowAsync();
+    }
+
     async void OnClosing(AppWindow sender, AppWindowClosingEventArgs args)
     {
         if (_closing) return;

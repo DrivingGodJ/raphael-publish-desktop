@@ -1,5 +1,5 @@
 import { useEffect, useState, useRef, useCallback } from 'react';
-import { PenLine, Eye } from 'lucide-react';
+import { PenLine, Eye, ArrowUpCircle, X } from 'lucide-react';
 import html2pdf from 'html2pdf.js';
 import { md, preprocessMarkdown, applyTheme } from './lib/markdown';
 import { markElementIndexes } from './lib/markdownIndexer';
@@ -10,7 +10,7 @@ import { findImagePosition, selectTextAreaRange } from './lib/imageSelector';
 import { findElementPosition, type ElementLocation } from './lib/markdownLocator';
 import { resolveProjectAssets, restoreProjectAssetPath } from './lib/projectAssets';
 import { copyPlainTextWithNativeSelection, copyRichHtmlWithNativeSelection } from './lib/nativeCopy';
-import type { RaphaelProject } from './types/desktop';
+import type { RaphaelProject, RaphaelUpdateCheckResult } from './types/desktop';
 import Header from './components/Header';
 import ProjectManager from './components/ProjectManager';
 import ThemeSelector from './components/ThemeSelector';
@@ -18,6 +18,7 @@ import Toolbar from './components/Toolbar';
 import EditorPanel from './components/EditorPanel';
 import PreviewPanel from './components/PreviewPanel';
 import WechatPublishDialog, { type WechatPublishFormValue } from './components/WechatPublishDialog';
+import UpdateDialog from './components/UpdateDialog';
 
 export default function App() {
     const [markdownInput, setMarkdownInput] = useState<string>(defaultContent);
@@ -35,6 +36,11 @@ export default function App() {
     const [saveState, setSaveState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
     const [notice, setNotice] = useState('');
     const [isPublishOpen, setIsPublishOpen] = useState(false);
+    const [availableUpdate, setAvailableUpdate] = useState<RaphaelUpdateCheckResult | null>(null);
+    const [isCheckingUpdates, setIsCheckingUpdates] = useState(false);
+    const [showUpdateBanner, setShowUpdateBanner] = useState(false);
+    const [isUpdateDialogOpen, setIsUpdateDialogOpen] = useState(false);
+    const [autoStartUpdateDownload, setAutoStartUpdateDownload] = useState(false);
     const isLoadingProjectRef = useRef(false);
     const saveTimerRef = useRef<number | null>(null);
     const previewRef = useRef<HTMLDivElement>(null);
@@ -81,6 +87,33 @@ export default function App() {
                 setNotice('读取本地项目失败，请通过项目管理重试。');
             });
     }, [openProjectInEditor]);
+
+    useEffect(() => {
+        const desktop = window.raphaelDesktop;
+        if (!desktop?.checkForUpdates) return;
+        let cancelled = false;
+        let timer: number | null = null;
+        desktop.getInfo()
+            .then(info => {
+                if (cancelled || info.isTestMode) return;
+                timer = window.setTimeout(() => {
+                    desktop.checkForUpdates?.()
+                        .then(result => {
+                            if (cancelled || !result.hasUpdate) return;
+                            setAvailableUpdate(result);
+                            setShowUpdateBanner(true);
+                        })
+                        .catch(() => {
+                            // Startup silent check intentionally does nothing when offline or unreachable.
+                        });
+                }, 1500);
+            })
+            .catch(() => undefined);
+        return () => {
+            cancelled = true;
+            if (timer !== null) window.clearTimeout(timer);
+        };
+    }, []);
 
     useEffect(() => {
         const desktop = window.raphaelDesktop;
@@ -392,6 +425,49 @@ export default function App() {
         setCurrentProject(current => current?.id === project.id ? { ...current, title: project.title } : current);
     };
 
+    const flushCurrentProjectBeforeUpdate = async () => {
+        const desktop = window.raphaelDesktop;
+        if (!desktop || !currentProject) return;
+        if (saveTimerRef.current !== null) {
+            window.clearTimeout(saveTimerRef.current);
+            saveTimerRef.current = null;
+        }
+        await desktop.saveProject({ id: currentProject.id, markdown: markdownInput, themeId: activeTheme });
+        setSaveState('saved');
+    };
+
+    const handleCheckUpdates = async () => {
+        const desktop = window.raphaelDesktop;
+        if (!desktop?.checkForUpdates || isCheckingUpdates) return;
+        if (availableUpdate) {
+            setAutoStartUpdateDownload(false);
+            setIsUpdateDialogOpen(true);
+            return;
+        }
+        setIsCheckingUpdates(true);
+        try {
+            const result = await desktop.checkForUpdates();
+            if (result.hasUpdate) {
+                setAvailableUpdate(result);
+                setShowUpdateBanner(false);
+                setAutoStartUpdateDownload(false);
+                setIsUpdateDialogOpen(true);
+            } else {
+                setAvailableUpdate(null);
+                setShowUpdateBanner(false);
+                setNotice(`当前已是最新版本（v${result.currentVersion}）。`);
+            }
+        } catch (error) {
+            const rawMessage = error instanceof Error ? error.message : String(error);
+            const cleanMessage = rawMessage
+                .replace(/^Error invoking remote method '[^']+':\s*(?:Error:\s*)?/i, '')
+                .replace(/^Error:\s*/i, '');
+            setNotice(`检查更新失败：${cleanMessage || '请检查网络连接后重试。'}`);
+        } finally {
+            setIsCheckingUpdates(false);
+        }
+    };
+
     const saveStateLabel = currentProject
         ? saveState === 'saving' ? '正在保存…' : saveState === 'error' ? '保存失败' : '已保存到本地'
         : '当前内容尚未建立项目';
@@ -403,13 +479,66 @@ export default function App() {
                 onOpenProjects={() => setIsProjectManagerOpen(true)}
                 onUpdateImages={handleUpdateImages}
                 onPublishDraft={() => setIsPublishOpen(true)}
+                onCheckUpdates={handleCheckUpdates}
                 desktopAvailable={Boolean(window.raphaelDesktop)}
                 canUpdateImages={Boolean(currentProject)}
                 isUpdatingImages={isUpdatingImages}
+                isCheckingUpdates={isCheckingUpdates}
+                availableUpdateVersion={availableUpdate?.latestVersion}
                 projectTitle={currentProject?.title}
                 saveStateLabel={saveStateLabel}
                 saveState={saveState}
             />
+
+            {showUpdateBanner && availableUpdate && (
+                <div
+                    data-testid="update-available-banner"
+                    className="flex flex-wrap items-center justify-between gap-3 border-b border-[#0066cc]/20 bg-[#0066cc]/10 px-4 py-2.5 text-sm text-[#004c99] dark:border-[#0a84ff]/25 dark:bg-[#0a84ff]/15 dark:text-[#64b5ff] sm:px-6"
+                >
+                    <div className="flex items-center gap-2 min-w-0">
+                        <ArrowUpCircle size={17} className="shrink-0" />
+                        <span className="truncate">
+                            发现新版本 <strong>v{availableUpdate.latestVersion}</strong>（当前 v{availableUpdate.currentVersion}），{availableUpdate.canAutoInstall ? '点击即可自动下载并更新。' : '请前往 GitHub 发布页下载。'}
+                        </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <button
+                            type="button"
+                            data-testid="update-banner-install"
+                            onClick={() => {
+                                if (availableUpdate.canAutoInstall) {
+                                    setShowUpdateBanner(false);
+                                    setAutoStartUpdateDownload(true);
+                                    setIsUpdateDialogOpen(true);
+                                } else {
+                                    void window.raphaelDesktop?.openReleasePage?.(availableUpdate.releaseUrl);
+                                }
+                            }}
+                            className="rounded-lg bg-[#0066cc] px-3 py-1 text-xs font-medium text-white hover:bg-[#0055aa] dark:bg-[#0a84ff] dark:hover:bg-[#0071e3]"
+                        >
+                            {availableUpdate.canAutoInstall ? '立即更新' : '前往发布页'}
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => {
+                                setAutoStartUpdateDownload(false);
+                                setIsUpdateDialogOpen(true);
+                            }}
+                            className="rounded-lg px-2.5 py-1 text-xs font-medium hover:bg-black/5 dark:hover:bg-white/10"
+                        >
+                            查看详情
+                        </button>
+                        <button
+                            type="button"
+                            onClick={() => setShowUpdateBanner(false)}
+                            className="rounded-full p-1 hover:bg-black/5 dark:hover:bg-white/10"
+                            aria-label="忽略本次更新提示"
+                        >
+                            <X size={15} />
+                        </button>
+                    </div>
+                </div>
+            )}
 
             {/* 移动端 Tab 切换 */}
             <div className="md:hidden glass-toolbar flex items-center z-[90]">
@@ -509,6 +638,16 @@ export default function App() {
                 defaultTitle={currentProject?.title || ''}
                 onClose={() => setIsPublishOpen(false)}
                 onSubmit={handlePublishDraft}
+            />
+            <UpdateDialog
+                open={isUpdateDialogOpen}
+                update={availableUpdate}
+                autoStartDownload={autoStartUpdateDownload}
+                onClose={() => {
+                    setIsUpdateDialogOpen(false);
+                    setAutoStartUpdateDownload(false);
+                }}
+                onBeforeInstall={flushCurrentProjectBeforeUpdate}
             />
             {notice && (
                 <div className="fixed bottom-6 left-1/2 z-[400] max-w-[90vw] -translate-x-1/2 rounded-full bg-black px-5 py-3 text-sm text-white shadow-2xl dark:bg-white dark:text-black">

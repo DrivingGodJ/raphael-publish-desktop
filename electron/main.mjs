@@ -5,6 +5,13 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 import { app, BrowserWindow, dialog, ipcMain, Menu, net, protocol, safeStorage, shell } from 'electron'
 import { createProjectStore, ensurePathInside, imageDirectoryName } from './project-store.mjs'
 import { publishWechatDraft } from './wechat-publisher.mjs'
+import {
+  checkLatestRelease,
+  DEFAULT_RELEASES_PAGE_URL,
+  downloadReleaseAsset,
+  isAllowedGitHubUrl,
+  launchDownloadedUpdate,
+} from './app-updater.mjs'
 
 const currentDirectory = dirname(fileURLToPath(import.meta.url))
 const appRoot = resolve(currentDirectory, `..`)
@@ -68,10 +75,14 @@ async function savePublisherSettings(payload) {
 }
 
 function registerIpcHandlers() {
+  let activeUpdateController = null
+  let cachedUpdate = null
+
   ipcMain.handle(`desktop:get-info`, async () => ({
     appName: app.getName(),
     projectsRoot: getProjectsRoot(),
     version: app.getVersion(),
+    isTestMode: process.env.RAPHAEL_TEST_MODE === '1',
   }))
   ipcMain.handle(`project:list`, () => getProjectStore().listProjects())
   ipcMain.handle(`project:create`, (_event, payload) => getProjectStore().createProject(payload || {}))
@@ -116,6 +127,71 @@ function registerIpcHandlers() {
   ipcMain.handle(`publisher:publish-draft`, async (_event, payload) => {
     const settings = await savePublisherSettings(payload || {})
     return publishWechatDraft({ ...payload, ...settings }, getProjectStore())
+  })
+  ipcMain.handle(`updater:check`, async () => {
+    const result = await checkLatestRelease({
+      currentVersion: app.getVersion(),
+      platform: process.platform,
+      arch: process.arch,
+      fetchImpl: net.fetch.bind(net),
+    })
+    cachedUpdate = result.hasUpdate ? result : null
+    return result
+  })
+  ipcMain.handle(`updater:download-and-install`, async (event) => {
+    if (activeUpdateController) throw new Error(`正在下载更新，请稍候。`)
+    const update = cachedUpdate || await checkLatestRelease({
+      currentVersion: app.getVersion(),
+      platform: process.platform,
+      arch: process.arch,
+      fetchImpl: net.fetch.bind(net),
+    })
+    if (!update.hasUpdate || !update.asset) throw new Error(`当前没有可自动下载的更新包。`)
+
+    const controller = new AbortController()
+    activeUpdateController = controller
+    try {
+      const updatesDir = join(app.getPath(`userData`), `updates`)
+      const filePath = await downloadReleaseAsset({
+        asset: update.asset,
+        checksumsUrl: update.checksumsUrl,
+        currentVersion: app.getVersion(),
+        targetDir: updatesDir,
+        fetchImpl: net.fetch.bind(net),
+        signal: controller.signal,
+        onProgress: (progress) => {
+          if (!event.sender.isDestroyed()) event.sender.send(`updater:progress`, progress)
+        },
+      })
+      const installResult = await launchDownloadedUpdate({
+        filePath,
+        platform: process.platform,
+        currentPid: process.pid,
+        execPath: process.execPath,
+        isPackaged: app.isPackaged,
+        openPath: target => shell.openPath(target),
+      })
+      if (installResult.mode === `auto-relaunch`) {
+        setTimeout(() => app.quit(), 200)
+      }
+      return { ...installResult, filePath }
+    }
+    catch (error) {
+      if (error && error.name === `AbortError`) return { mode: `cancelled` }
+      throw error
+    }
+    finally {
+      if (activeUpdateController === controller) activeUpdateController = null
+    }
+  })
+  ipcMain.handle(`updater:cancel-download`, async () => {
+    if (activeUpdateController) activeUpdateController.abort()
+    return { cancelled: true }
+  })
+  ipcMain.handle(`updater:open-release-page`, async (_event, url) => {
+    const target = isAllowedGitHubUrl(url) ? url : DEFAULT_RELEASES_PAGE_URL
+    await shell.openExternal(target)
+    return { opened: true }
   })
 }
 

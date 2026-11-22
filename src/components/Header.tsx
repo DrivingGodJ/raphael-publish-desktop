@@ -1,19 +1,22 @@
-import { FolderKanban, RefreshCw, Send } from 'lucide-react';
+import { ArrowUpCircle, FolderKanban, Loader2, RefreshCw, Send } from 'lucide-react';
 import { motion } from 'framer-motion';
 
 interface HeaderProps {
     onOpenProjects: () => void;
     onUpdateImages: () => void;
     onPublishDraft: () => void;
+    onCheckUpdates: () => void;
     desktopAvailable: boolean;
     canUpdateImages: boolean;
     isUpdatingImages: boolean;
+    isCheckingUpdates: boolean;
+    availableUpdateVersion?: string;
     projectTitle?: string;
     saveStateLabel: string;
     saveState: 'idle' | 'saving' | 'saved' | 'error';
 }
 
-export default function Header({ onOpenProjects, onUpdateImages, onPublishDraft, desktopAvailable, canUpdateImages, isUpdatingImages, projectTitle, saveStateLabel, saveState }: HeaderProps) {
+export default function Header({ onOpenProjects, onUpdateImages, onPublishDraft, onCheckUpdates, desktopAvailable, canUpdateImages, isUpdatingImages, isCheckingUpdates, availableUpdateVersion, projectTitle, saveStateLabel, saveState }: HeaderProps) {
     return (
         <header className="glass flex items-center justify-between px-4 sm:px-6 py-3 sm:py-4 sticky top-0 z-[100]">
             <div className="flex items-center gap-3">
@@ -57,6 +60,21 @@ export default function Header({ onOpenProjects, onUpdateImages, onPublishDraft,
                         >
                             <RefreshCw size={17} className={isUpdatingImages ? 'animate-spin' : ''} />
                             <span className="hidden sm:inline">{isUpdatingImages ? '更新中…' : '更新图片'}</span>
+                        </motion.button>
+                        <motion.button
+                            whileHover={!isCheckingUpdates ? { scale: 1.03 } : undefined}
+                            whileTap={!isCheckingUpdates ? { scale: 0.97 } : undefined}
+                            onClick={onCheckUpdates}
+                            disabled={isCheckingUpdates}
+                            data-testid="check-update-button"
+                            title={availableUpdateVersion ? `发现新版本 v${availableUpdateVersion}，点击查看并更新` : '检查 GitHub Releases 是否有新版本'}
+                            className={`apple-btn-secondary relative flex items-center gap-2 !rounded-xl !px-3 !py-2 text-sm disabled:cursor-not-allowed disabled:opacity-45 ${availableUpdateVersion ? '!border-[#0066cc]/40 !text-[#0066cc] dark:!border-[#0a84ff]/50 dark:!text-[#0a84ff]' : ''}`}
+                        >
+                            {isCheckingUpdates ? <Loader2 size={17} className="animate-spin" /> : <ArrowUpCircle size={17} />}
+                            <span className="hidden lg:inline">{isCheckingUpdates ? '检查中…' : availableUpdateVersion ? `更新 v${availableUpdateVersion}` : '检查更新'}</span>
+                            {availableUpdateVersion && !isCheckingUpdates && (
+                                <span className="h-2 w-2 rounded-full bg-[#0066cc] dark:bg-[#0a84ff]" />
+                            )}
                         </motion.button>
                         <motion.button
                             whileHover={{ scale: 1.03 }}

@@ -48,8 +48,39 @@ export interface WechatDraftResult {
     usedSelectedCover: boolean;
 }
 
+export interface RaphaelUpdateAsset {
+    name: string;
+    downloadUrl: string;
+    size: number;
+}
+
+export interface RaphaelUpdateCheckResult {
+    hasUpdate: boolean;
+    canAutoInstall: boolean;
+    currentVersion: string;
+    latestVersion: string;
+    releaseName: string;
+    releaseNotes: string;
+    releaseUrl: string;
+    publishedAt: string | null;
+    asset: RaphaelUpdateAsset | null;
+    checksumsUrl: string | null;
+}
+
+export interface RaphaelUpdateProgress {
+    stage: 'downloading' | 'verifying' | 'ready';
+    downloadedBytes: number;
+    totalBytes: number | null;
+    percentage: number | null;
+}
+
+export interface RaphaelUpdateInstallResult {
+    mode: 'auto-relaunch' | 'opened-installer' | 'cancelled';
+    filePath?: string;
+}
+
 export interface RaphaelDesktopApi {
-    getInfo: () => Promise<{ appName: string; projectsRoot: string; version: string }>;
+    getInfo: () => Promise<{ appName: string; projectsRoot: string; version: string; isTestMode?: boolean }>;
     listProjects: () => Promise<RaphaelProjectSummary[]>;
     createProject: (payload: { name: string; markdown?: string }) => Promise<RaphaelProject>;
     importProject: (payload: { name: string; markdown: string }) => Promise<RaphaelProject>;
@@ -63,6 +94,11 @@ export interface RaphaelDesktopApi {
     getPublisherSettings: () => Promise<{ appId: string; hasAppSecret: boolean }>;
     selectPublisherCover: () => Promise<string | null>;
     publishWechatDraft: (payload: WechatDraftPayload) => Promise<WechatDraftResult>;
+    checkForUpdates?: () => Promise<RaphaelUpdateCheckResult>;
+    downloadAndInstallUpdate?: () => Promise<RaphaelUpdateInstallResult>;
+    cancelUpdateDownload?: () => Promise<{ cancelled: boolean }>;
+    openReleasePage?: (url?: string) => Promise<{ opened: boolean }>;
+    onUpdateProgress?: (listener: (progress: RaphaelUpdateProgress) => void) => () => void;
 }
 
 declare global {

@@ -9,22 +9,41 @@ internal static class Program
     [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern nint FindWindow(string? className, string title);
     [DllImport("user32.dll")] static extern bool SetForegroundWindow(nint window);
     [DllImport("user32.dll")] static extern bool ShowWindow(nint window, int command);
+    static Mutex? _singleInstanceMutex;
+
+    public static void ReleaseSingleInstanceMutex()
+    {
+        var mutex = Interlocked.Exchange(ref _singleInstanceMutex, null);
+        if (mutex is null) return;
+        try { mutex.ReleaseMutex(); } catch { }
+        mutex.Dispose();
+    }
+
     [STAThread]
     static void Main(string[] args)
     {
-        using var single = new Mutex(true, "Local\\Raphael.Publish.WinUI", out var created);
+        var single = new Mutex(true, "Local\\Raphael.Publish.WinUI", out var created);
         if (!created && !args.Contains("--self-test"))
         {
+            single.Dispose();
             var previous = FindWindow(null, "Raphael Publish · WinUI 3");
             if (previous != 0) { ShowWindow(previous, 9); SetForegroundWindow(previous); }
             return;
         }
-        WinRT.ComWrappersSupport.InitializeComWrappers();
-        Application.Start(init =>
+        _singleInstanceMutex = single;
+        try
         {
-            SynchronizationContext.SetSynchronizationContext(new DispatcherQueueSynchronizationContext(DispatcherQueue.GetForCurrentThread()));
-            _ = new RaphaelApp(args);
-        });
+            WinRT.ComWrappersSupport.InitializeComWrappers();
+            Application.Start(init =>
+            {
+                SynchronizationContext.SetSynchronizationContext(new DispatcherQueueSynchronizationContext(DispatcherQueue.GetForCurrentThread()));
+                _ = new RaphaelApp(args);
+            });
+        }
+        finally
+        {
+            ReleaseSingleInstanceMutex();
+        }
     }
 }
 

@@ -71,6 +71,26 @@ await context.addInitScript(() => {
     getPublisherSettings: async () => ({ appId: ``, hasAppSecret: false }),
     selectPublisherCover: async () => `C:\\Mock\\cover.jpg`,
     publishWechatDraft: async payload => ({ mediaId: `draft-test-media-id`, uploadedImageCount: payload.content.includes(`<img`) ? 1 : 0, usedSelectedCover: Boolean(payload.coverPath) }),
+    checkForUpdates: async () => ({
+      hasUpdate: true,
+      canAutoInstall: true,
+      currentVersion: `1.0.0`,
+      latestVersion: `2.2.0`,
+      releaseName: `v2.2.0 · 自动检查更新`,
+      releaseNotes: `- 新增检查更新与自动下载安装功能`,
+      releaseUrl: `https://github.com/DrivingGodJ/raphael-publish-desktop/releases/tag/v2.2.0`,
+      publishedAt: `2026-11-22T12:00:00Z`,
+      asset: {
+        name: `Raphael-Publish-WebUI-2.2.0-macos-arm64.dmg`,
+        downloadUrl: `https://github.com/DrivingGodJ/raphael-publish-desktop/releases/download/v2.2.0/Raphael-Publish-WebUI-2.2.0-macos-arm64.dmg`,
+        size: 142_000_000,
+      },
+      checksumsUrl: `https://github.com/DrivingGodJ/raphael-publish-desktop/releases/download/v2.2.0/SHA256SUMS.txt`,
+    }),
+    downloadAndInstallUpdate: async () => ({ mode: `opened-installer`, filePath: `/tmp/Raphael-Publish-WebUI-2.2.0-macos-arm64.dmg` }),
+    cancelUpdateDownload: async () => ({ cancelled: true }),
+    openReleasePage: async () => ({ opened: true }),
+    onUpdateProgress: () => () => {},
   }
 })
 
@@ -151,6 +171,15 @@ try {
   await publishDialog.getByText(`草稿创建成功`).waitFor({ state: `visible` })
   await publishDialog.getByText(`关闭`, { exact: true }).click()
 
+  await page.getByTestId(`update-available-banner`).waitFor({ state: `visible`, timeout: 5_000 })
+  await page.getByTestId(`check-update-button`).click()
+  const updateDialog = page.getByRole(`dialog`, { name: `发现新版本` })
+  await updateDialog.waitFor({ state: `visible` })
+  await updateDialog.getByTestId(`confirm-update-button`).click()
+  await updateDialog.getByText(`安装包已下载并打开，请按窗口提示完成安装。`).waitFor({ state: `visible` })
+  await updateDialog.getByText(`关闭`, { exact: true }).click()
+  await updateDialog.waitFor({ state: `hidden` })
+
   await page.getByRole(`button`, { name: `复制到公众号`, exact: true }).click()
   await page.getByRole(`button`, { name: `已复制！请贴往公众号`, exact: true }).waitFor({ state: `visible` })
   await page.getByRole(`button`, { name: `复制纯文本`, exact: true }).click()
@@ -160,6 +189,37 @@ try {
     throw new Error(`Rich text and plain text did not both use native copy events.`)
 
   await page.screenshot({ path: `build/desktop-ui-qa.png`, fullPage: true })
+
+  // Verify startup silent check stays completely silent when offline / failing.
+  const silentContext = await browser.newContext({ viewport: { width: 1500, height: 960 } })
+  await silentContext.addInitScript(() => {
+    window.raphaelDesktop = {
+      getInfo: async () => ({ appName: `Raphael Publish`, projectsRoot: `C:\\Mock\\Raphael公众号项目`, version: `2.1.0` }),
+      listProjects: async () => [],
+      createProject: async () => { throw new Error('unused') },
+      importProject: async () => { throw new Error('unused') },
+      readProject: async () => { throw new Error('unused') },
+      saveProject: async () => { throw new Error('unused') },
+      updateProjectImages: async () => { throw new Error('unused') },
+      renameProject: async () => { throw new Error('unused') },
+      deleteProject: async () => { throw new Error('unused') },
+      openProjectFolder: async () => ({ opened: true }),
+      openProjectsRoot: async () => ({ opened: true }),
+      getPublisherSettings: async () => ({ appId: ``, hasAppSecret: false }),
+      selectPublisherCover: async () => null,
+      publishWechatDraft: async () => { throw new Error('unused') },
+      checkForUpdates: async () => { throw new Error('无法连接到 GitHub，请检查网络后重试。') },
+    }
+  })
+  const silentPage = await silentContext.newPage()
+  await silentPage.goto(appUrl, { waitUntil: `networkidle`, timeout: 60_000 })
+  await silentPage.waitForTimeout(2_000)
+  if (await silentPage.getByTestId(`update-available-banner`).count())
+    throw new Error(`Update banner appeared even when startup silent check failed.`)
+  if (await silentPage.getByText(`检查更新失败`).count())
+    throw new Error(`Startup silent check displayed an error message when offline.`)
+  await silentContext.close()
+
   process.stdout.write(`${JSON.stringify({
     followsSystemTheme: true,
     projectManagementLabel: true,
@@ -173,6 +233,8 @@ try {
     nativePlainTextCopy: true,
     removedWechatCompatibilityCheck: true,
     directDraftPublishDialog: true,
+    startupUpdateBannerAndDialog: true,
+    silentOnOfflineStartupCheck: true,
   }, null, 2)}\n`)
 }
 finally {

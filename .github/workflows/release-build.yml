@@ -27,6 +27,7 @@ jobs:
       - run: pnpm test
       - run: pnpm test:desktop-backend
       - run: pnpm test:wechat-publisher
+      - run: pnpm test:app-updater
       - run: dotnet run --project native/Tests/Raphael.Core.Tests.csproj -c Release
       - name: Install Chromium for logo generation
         run: pnpm exec playwright install chromium
@@ -68,6 +69,7 @@ jobs:
       - run: pnpm test
       - run: pnpm test:desktop-backend
       - run: pnpm test:wechat-publisher
+      - run: pnpm test:app-updater
       - run: pnpm exec playwright install chromium
       - name: Build macOS Web UI disk image
         env:
