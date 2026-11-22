@@ -1,0 +1,107 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 280" width="1200" height="280" role="img" aria-label="Raphael Publish Desktop 本地排版工作流：粘贴整理 → 图片本地化 → 主题预览 → 一键交付">
+  <defs>
+    <linearGradient id="wbg" x1="0" y1="0" x2="1200" y2="280" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#0b1120"/>
+      <stop offset="100%" stop-color="#111827"/>
+    </linearGradient>
+    <linearGradient id="conn1" x1="276" y1="152" x2="322" y2="152" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#38bdf8" stop-opacity="0.25"/>
+      <stop offset="100%" stop-color="#38bdf8" stop-opacity="0.95"/>
+    </linearGradient>
+    <linearGradient id="conn2" x1="576" y1="152" x2="622" y2="152" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#38bdf8" stop-opacity="0.25"/>
+      <stop offset="100%" stop-color="#818cf8" stop-opacity="0.95"/>
+    </linearGradient>
+    <linearGradient id="conn3" x1="876" y1="152" x2="922" y2="152" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="#818cf8" stop-opacity="0.25"/>
+      <stop offset="100%" stop-color="#10b981" stop-opacity="0.95"/>
+    </linearGradient>
+    <style>
+      .sans {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei", "Noto Sans CJK SC", sans-serif;
+      }
+      .mono {
+        font-family: ui-monospace, SFMono-Regular, "Cascadia Code", Consolas, monospace;
+      }
+      @keyframes stream {
+        0% { stroke-dashoffset: 24; }
+        100% { stroke-dashoffset: 0; }
+      }
+      @keyframes nodePulse {
+        0%, 100% { opacity: 0.7; }
+        50% { opacity: 1; }
+      }
+      .beam { stroke-dasharray: 6 4; animation: stream 1.4s linear infinite; }
+      .beam-d1 { stroke-dasharray: 6 4; animation: stream 1.4s linear -0.45s infinite; }
+      .beam-d2 { stroke-dasharray: 6 4; animation: stream 1.4s linear -0.9s infinite; }
+      .badge-glow { animation: nodePulse 3.6s ease-in-out infinite; }
+    </style>
+  </defs>
+
+  <rect x="1" y="1" width="1198" height="278" rx="20" fill="url(#wbg)" stroke="#ffffff" stroke-opacity="0.1" stroke-width="1.5"/>
+
+  <!-- Header row -->
+  <text x="36" y="44" fill="#f8fafc" class="sans" font-size="16" font-weight="700">本地优先排版链路</text>
+  <text x="184" y="44" fill="#64748b" class="sans" font-size="13">正文、图片与版本均归档在本机，不依赖外部图床与云端中转</text>
+  <line x1="36" y1="62" x2="1164" y2="62" stroke="#ffffff" stroke-opacity="0.07"/>
+
+  <!-- Card 1 -->
+  <g transform="translate(36, 84)">
+    <rect width="240" height="160" rx="14" fill="#172033" stroke="#38bdf8" stroke-opacity="0.28" stroke-width="1.2"/>
+    <rect x="18" y="18" width="44" height="24" rx="8" fill="#0a84ff" fill-opacity="0.2" class="badge-glow"/>
+    <text x="40" y="34" text-anchor="middle" fill="#7dd3fc" class="mono" font-size="12" font-weight="700">01</text>
+    <text x="72" y="35" fill="#f8fafc" class="sans" font-size="15.5" font-weight="700">粘贴与整理</text>
+    <text x="18" y="68" fill="#cbd5e1" class="sans" font-size="13">直接粘贴 FlowUs 等富文本</text>
+    <text x="18" y="90" fill="#94a3b8" class="sans" font-size="12.5">自动净化为标准 Markdown</text>
+    <rect x="18" y="114" width="204" height="28" rx="8" fill="#0f172a" stroke="#ffffff" stroke-opacity="0.08"/>
+    <text x="120" y="132" text-anchor="middle" fill="#7dd3fc" class="mono" font-size="11">独立项目 · 正文.md 自动保存</text>
+  </g>
+
+  <!-- Connector 1 -> 2 -->
+  <path d="M 278 164 L 320 164" fill="none" stroke="url(#conn1)" stroke-width="2.5" stroke-linecap="round" class="beam"/>
+  <path d="M 314 158 L 321 164 L 314 170" fill="none" stroke="#38bdf8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <!-- Card 2 -->
+  <g transform="translate(332, 84)">
+    <rect width="240" height="160" rx="14" fill="#172033" stroke="#38bdf8" stroke-opacity="0.28" stroke-width="1.2"/>
+    <rect x="18" y="18" width="44" height="24" rx="8" fill="#0284c7" fill-opacity="0.24" class="badge-glow"/>
+    <text x="40" y="34" text-anchor="middle" fill="#7dd3fc" class="mono" font-size="12" font-weight="700">02</text>
+    <text x="72" y="35" fill="#f8fafc" class="sans" font-size="15.5" font-weight="700">图片本地化</text>
+    <text x="18" y="68" fill="#cbd5e1" class="sans" font-size="13">增量下载文中新增图片</text>
+    <text x="18" y="90" fill="#94a3b8" class="sans" font-size="12.5">复用已有文件，旧图进回收站</text>
+    <rect x="18" y="114" width="204" height="28" rx="8" fill="#0f172a" stroke="#ffffff" stroke-opacity="0.08"/>
+    <text x="120" y="132" text-anchor="middle" fill="#7dd3fc" class="mono" font-size="11">同目录 图片/ · 保留原图字节</text>
+  </g>
+
+  <!-- Connector 2 -> 3 -->
+  <path d="M 574 164 L 616 164" fill="none" stroke="url(#conn2)" stroke-width="2.5" stroke-linecap="round" class="beam-d1"/>
+  <path d="M 610 158 L 617 164 L 610 170" fill="none" stroke="#818cf8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <!-- Card 3 -->
+  <g transform="translate(628, 84)">
+    <rect width="240" height="160" rx="14" fill="#172033" stroke="#818cf8" stroke-opacity="0.32" stroke-width="1.2"/>
+    <rect x="18" y="18" width="44" height="24" rx="8" fill="#6366f1" fill-opacity="0.24" class="badge-glow"/>
+    <text x="40" y="34" text-anchor="middle" fill="#c7d2fe" class="mono" font-size="12" font-weight="700">03</text>
+    <text x="72" y="35" fill="#f8fafc" class="sans" font-size="15.5" font-weight="700">多端实时预览</text>
+    <text x="18" y="68" fill="#cbd5e1" class="sans" font-size="13">30 款主题 · 电脑/平板/手机</text>
+    <text x="18" y="90" fill="#94a3b8" class="sans" font-size="12.5">双向滚动同步 · 点击定位原文</text>
+    <rect x="18" y="114" width="204" height="28" rx="8" fill="#0f172a" stroke="#ffffff" stroke-opacity="0.08"/>
+    <text x="120" y="132" text-anchor="middle" fill="#c7d2fe" class="mono" font-size="11">WinUI 3 &amp; macOS 共享引擎</text>
+  </g>
+
+  <!-- Connector 3 -> 4 -->
+  <path d="M 870 164 L 912 164" fill="none" stroke="url(#conn3)" stroke-width="2.5" stroke-linecap="round" class="beam-d2"/>
+  <path d="M 906 158 L 913 164 L 906 170" fill="none" stroke="#10b981" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+
+  <!-- Card 4 -->
+  <g transform="translate(924, 84)">
+    <rect width="240" height="160" rx="14" fill="#132524" stroke="#10b981" stroke-opacity="0.36" stroke-width="1.2"/>
+    <rect x="18" y="18" width="44" height="24" rx="8" fill="#10b981" fill-opacity="0.22" class="badge-glow"/>
+    <text x="40" y="34" text-anchor="middle" fill="#a7f3d0" class="mono" font-size="12" font-weight="700">04</text>
+    <text x="72" y="35" fill="#f8fafc" class="sans" font-size="15.5" font-weight="700">按需交付发布</text>
+    <text x="18" y="68" fill="#d1fae5" class="sans" font-size="13">复制富文本 · 导出 HTML/PDF</text>
+    <text x="18" y="90" fill="#94a3b8" class="sans" font-size="12.5">官方接口直传原图创建草稿</text>
+    <rect x="18" y="114" width="204" height="28" rx="8" fill="#0f172a" stroke="#10b981" stroke-opacity="0.25"/>
+    <text x="120" y="132" text-anchor="middle" fill="#6ee7b7" class="mono" font-size="11">后台检查后手动发表 · 不误发</text>
+  </g>
+</svg>
